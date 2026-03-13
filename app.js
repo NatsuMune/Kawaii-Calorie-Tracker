@@ -423,17 +423,34 @@ function renderChart() {
     const rawH = item.total > 0 ? (item.total / max) * chartH : 0;
     const h = rawH > 0 ? Math.max(2, rawH) : 0;
     const y = baselineY - h;
+    const isToday = item.isToday;
 
     if (h > 0) {
       const grad = ctx.createLinearGradient(0, y, 0, baselineY);
-      grad.addColorStop(0, '#7edc9a');
-      grad.addColorStop(1, '#b9f2df');
+      if (isToday) {
+        grad.addColorStop(0, '#4fbe78');
+        grad.addColorStop(1, '#86e7ad');
+      } else {
+        grad.addColorStop(0, '#7edc9a');
+        grad.addColorStop(1, '#b9f2df');
+      }
       ctx.fillStyle = grad;
       ctx.fillRect(x, y, barW, h);
+
+      if (isToday) {
+        ctx.strokeStyle = 'rgba(79, 190, 120, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, barW, h);
+      }
+
+      ctx.fillStyle = isToday ? '#3f9f63' : '#6f9981';
+      ctx.font = '11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${item.total}`, x + barW / 2, Math.max(pad.top + 10, y - 6));
     }
 
-    ctx.fillStyle = '#6f9981';
-    ctx.font = '12px system-ui';
+    ctx.fillStyle = isToday ? '#4fbe78' : '#6f9981';
+    ctx.font = isToday ? '700 12px system-ui' : '12px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText(item.label, x + barW / 2, height - 8);
   });
@@ -454,6 +471,7 @@ function roundRect(ctx, x, y, w, h, r, fill) {
 function last7DaysTotals(entries) {
   const days = [];
   const byDay = Object.create(null);
+  const todayKey = localDateKey();
   entries.forEach(entry => {
     const key = toLocalDateKey(entry.createdAt);
     byDay[key] = (byDay[key] || 0) + Number(entry.calories || 0);
@@ -463,7 +481,11 @@ function last7DaysTotals(entries) {
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() - i);
     const key = toLocalDateKey(d);
-    days.push({ label: d.toLocaleDateString('zh-CN', { weekday: 'short' }).replace('周', ''), total: byDay[key] || 0 });
+    days.push({
+      label: d.toLocaleDateString('zh-CN', { weekday: 'short' }).replace('周', ''),
+      total: byDay[key] || 0,
+      isToday: key === todayKey
+    });
   }
   return days;
 }
