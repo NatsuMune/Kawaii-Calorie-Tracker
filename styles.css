@@ -41,11 +41,12 @@ body {
 }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; border: 0; }
-input, textarea {
+input, textarea, select {
   -webkit-user-select: text;
   user-select: text;
 }
-input {
+input,
+select {
   width: 100%;
   border: 2px solid rgba(126, 220, 154, 0.28);
   background: rgba(255,255,255,0.94);
@@ -55,7 +56,21 @@ input {
   color: var(--text);
   transition: transform .15s ease, border-color .2s ease, box-shadow .2s ease;
 }
-input:focus {
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--pink-strong) 50%),
+    linear-gradient(135deg, var(--pink-strong) 50%, transparent 50%);
+  background-position:
+    calc(100% - 22px) calc(50% - 3px),
+    calc(100% - 14px) calc(50% - 3px);
+  background-size: 8px 8px, 8px 8px;
+  background-repeat: no-repeat;
+  padding-right: 44px;
+}
+input:focus,
+select:focus {
   outline: none;
   border-color: var(--pink-strong);
   box-shadow: 0 0 0 4px rgba(79, 190, 120, .14);
@@ -286,11 +301,27 @@ h3 { font-size: 1.18rem; }
 }
 .history-item:active { transform: scale(.985); }
 .history-meta { max-width: 70%; }
+.history-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .history-meta mark {
   background: rgba(216, 246, 184, .9);
   color: inherit;
   padding: 0 .18em;
   border-radius: .45em;
+}
+.meal-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(126,220,154,.14);
+  color: var(--pink-strong);
+  font-size: .84rem;
+  font-weight: 700;
 }
 .history-calories {
   padding: 8px 12px;

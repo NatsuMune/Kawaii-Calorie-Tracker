@@ -5,6 +5,14 @@ let deferredPrompt = null;
 let editingEntryId = null;
 let historyQuery = '';
 
+const MEAL_TYPE_LABELS = {
+  breakfast: '早餐',
+  lunch: '午餐',
+  dinner: '晚餐',
+  snack: '零食',
+  other: '其他'
+};
+
 const els = {
   views: [...document.querySelectorAll('.view')],
   navBtns: [...document.querySelectorAll('.nav-btn')],
@@ -19,6 +27,7 @@ const els = {
   intakeForm: document.getElementById('intakeForm'),
   intakeText: document.getElementById('intakeText'),
   intakeCalories: document.getElementById('intakeCalories'),
+  intakeMealType: document.getElementById('intakeMealType'),
   submitEntryBtn: document.getElementById('submitEntryBtn'),
   editingBanner: document.getElementById('editingBanner'),
   cancelEditBtn: document.getElementById('cancelEditBtn'),
@@ -70,6 +79,7 @@ function sanitizeState(parsed) {
             id: String(entry.id || makeEntryId()),
             text: String(entry.text || '').trim().slice(0, 120),
             calories: Math.max(0, Number(entry.calories) || 0),
+            mealType: sanitizeMealType(entry.mealType),
             createdAt: entry.createdAt || new Date().toISOString()
           }))
           .filter((entry) => entry.text)
@@ -112,6 +122,7 @@ function bindForm() {
     try {
       const text = (els.intakeText?.value || '').trim();
       const calories = Number(els.intakeCalories?.value);
+      const mealType = sanitizeMealType(els.intakeMealType?.value);
       if (!text || !Number.isFinite(calories) || calories < 0) {
         toast('请输入有效的食物名称和热量 ✨');
         return false;
@@ -126,6 +137,7 @@ function bindForm() {
         }
         entry.text = text;
         entry.calories = calories;
+        entry.mealType = mealType;
         saveState();
         renderAll();
         stopEditing();
@@ -139,6 +151,7 @@ function bindForm() {
         id: makeEntryId(),
         text,
         calories,
+        mealType,
         createdAt: new Date().toISOString()
       };
       state.entries.unshift(entry);
@@ -230,6 +243,7 @@ function startEditing(entryId) {
   editingEntryId = entry.id;
   if (els.intakeText) els.intakeText.value = entry.text;
   if (els.intakeCalories) els.intakeCalories.value = entry.calories;
+  if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(entry.mealType);
   renderEditorState();
   switchView('log');
   els.intakeText?.focus();
@@ -322,7 +336,10 @@ function renderHistory() {
   if (!els.historyList) return;
   const entries = sortedEntries();
   const filtered = historyQuery
-    ? entries.filter((entry) => entry.text.toLowerCase().includes(historyQuery.toLowerCase()))
+    ? entries.filter((entry) => {
+        const query = historyQuery.toLowerCase();
+        return entry.text.toLowerCase().includes(query) || getMealTypeLabel(entry.mealType).toLowerCase().includes(query);
+      })
     : entries;
   const visible = filtered.slice(0, 20);
 
@@ -340,7 +357,7 @@ function renderHistory() {
     <article class="history-item">
       <div class="history-meta">
         <strong>${highlightMatch(entry.text, historyQuery)}</strong>
-        <p class="subtle">${formatDate(entry.createdAt)}</p>
+        <p class="subtle history-meta-line"><span class="meal-badge">${highlightMatch(getMealTypeLabel(entry.mealType), historyQuery)}</span><span>${formatDate(entry.createdAt)}</span></p>
       </div>
       <div class="history-actions">
         <div class="history-calories">${entry.calories} kcal</div>
@@ -509,6 +526,14 @@ async function importBackup(e) {
   } finally {
     e.target.value = '';
   }
+}
+
+function sanitizeMealType(value) {
+  return Object.prototype.hasOwnProperty.call(MEAL_TYPE_LABELS, value) ? value : 'other';
+}
+
+function getMealTypeLabel(value) {
+  return MEAL_TYPE_LABELS[sanitizeMealType(value)];
 }
 
 function makeEntryId() {

@@ -107,6 +107,16 @@
                 <span>热量</span>
                 <input id="intakeCalories" name="calories" type="number" min="0" max="9999" inputmode="numeric" placeholder="例如：420" required />
               </label>
+              <label>
+                <span>餐别</span>
+                <select id="intakeMealType" name="mealType">
+                  <option value="breakfast">早餐</option>
+                  <option value="lunch">午餐</option>
+                  <option value="dinner">晚餐</option>
+                  <option value="snack">零食</option>
+                  <option value="other">其他</option>
+                </select>
+              </label>
               <button id="submitEntryBtn" type="submit" class="primary-btn">保存记录</button>
             </form>
             <p id="saveHint" class="save-hint">所有数据只保存在这台设备的本地浏览器里。</p>
