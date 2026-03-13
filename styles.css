@@ -387,36 +387,6 @@ h3 { font-size: 1.18rem; }
   border-bottom: 1px dashed rgba(111,153,129,.2);
 }
 .setting-row:last-of-type { border-bottom: 0; }
-.switch {
-  position: relative;
-  display: inline-flex;
-  width: 58px;
-  height: 34px;
-}
-.switch input { display: none; }
-.slider {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background: #d7efd8;
-  transition: .22s ease;
-}
-.slider::after {
-  content: "";
-  position: absolute;
-  width: 26px;
-  height: 26px;
-  top: 4px;
-  left: 4px;
-  border-radius: 50%;
-  background: white;
-  box-shadow: 0 6px 12px rgba(0,0,0,.12);
-  transition: .22s ease;
-}
-.switch input:checked + .slider {
-  background: linear-gradient(135deg, var(--pink-strong), #a8e6bc);
-}
-.switch input:checked + .slider::after { transform: translateX(24px); }
 .bottom-nav {
   position: fixed;
   left: 50%;

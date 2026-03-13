@@ -3,7 +3,7 @@ const LEGACY_STORAGE_KEY = 'kawaii-calorie-tracker-v1';
 const DB_NAME = 'kawaii-calorie-tracker-db';
 const DB_STORE = 'state';
 const DB_RECORD_KEY = 'primary';
-const DEFAULT_STATE = Object.freeze({ entries: [], settings: { goal: 2000, haptics: true } });
+const DEFAULT_STATE = Object.freeze({ entries: [], settings: { goal: 2000 } });
 const state = createDefaultState();
 let deferredPrompt = null;
 let editingEntryId = null;
@@ -39,7 +39,6 @@ const els = {
   editingBanner: document.getElementById('editingBanner'),
   cancelEditBtn: document.getElementById('cancelEditBtn'),
   goalInput: document.getElementById('goalInput'),
-  hapticsToggle: document.getElementById('hapticsToggle'),
   clearDataBtn: document.getElementById('clearDataBtn'),
   exportDataBtn: document.getElementById('exportDataBtn'),
   importDataInput: document.getElementById('importDataInput'),
@@ -118,8 +117,7 @@ function sanitizeState(parsed) {
           .filter((entry) => entry.text)
       : [],
     settings: {
-      goal: Math.max(0, Number(parsed.settings?.goal || 2000)),
-      haptics: parsed.settings?.haptics !== false
+      goal: Math.max(0, Number(parsed.settings?.goal || 2000))
     }
   };
 }
@@ -288,12 +286,6 @@ function bindSettings() {
     saveState();
     renderAll();
     toast('目标已更新 ✿');
-    pulse();
-  });
-  els.hapticsToggle?.addEventListener('change', () => {
-    state.settings.haptics = els.hapticsToggle.checked;
-    saveState();
-    toast(state.settings.haptics ? '已开启震动反馈' : '已关闭震动反馈');
     pulse();
   });
   els.exportDataBtn?.addEventListener('click', exportBackup);
@@ -477,7 +469,6 @@ function renderHistory() {
 
 function renderSettings() {
   if (els.goalInput) els.goalInput.value = state.settings.goal;
-  if (els.hapticsToggle) els.hapticsToggle.checked = state.settings.haptics;
 }
 
 function renderChart() {
@@ -696,10 +687,7 @@ function toast(message) {
   toastEl._timer = setTimeout(() => toastEl.classList.remove('show'), 1800);
 }
 
-function pulse(pattern = [8]) {
-  if (!state.settings.haptics) return;
-  if (navigator.vibrate) navigator.vibrate(pattern);
-}
+function pulse() {}
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
