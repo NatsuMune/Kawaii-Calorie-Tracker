@@ -398,7 +398,9 @@ function renderChart() {
   const pad = { top: 16, right: 8, bottom: 28, left: 8 };
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
-  const barW = chartW / data.length - 10;
+  const gap = 10;
+  const barW = chartW / data.length - gap;
+  const baselineY = pad.top + chartH;
 
   ctx.strokeStyle = 'rgba(111, 153, 129, 0.14)';
   ctx.lineWidth = 1;
@@ -410,14 +412,26 @@ function renderChart() {
     ctx.stroke();
   }
 
+  ctx.strokeStyle = 'rgba(111, 153, 129, 0.22)';
+  ctx.beginPath();
+  ctx.moveTo(pad.left, baselineY);
+  ctx.lineTo(width - pad.right, baselineY);
+  ctx.stroke();
+
   data.forEach((item, i) => {
-    const x = pad.left + i * (barW + 10) + 5;
-    const h = Math.max(8, (item.total / max) * chartH);
-    const y = pad.top + chartH - h;
-    const grad = ctx.createLinearGradient(0, y, 0, y + h);
-    grad.addColorStop(0, '#7edc9a');
-    grad.addColorStop(1, '#b9f2df');
-    roundRect(ctx, x, y, barW, h, 14, grad);
+    const x = pad.left + i * (barW + gap) + gap / 2;
+    const rawH = item.total > 0 ? (item.total / max) * chartH : 0;
+    const h = rawH > 0 ? Math.max(2, rawH) : 0;
+    const y = baselineY - h;
+
+    if (h > 0) {
+      const grad = ctx.createLinearGradient(0, y, 0, baselineY);
+      grad.addColorStop(0, '#7edc9a');
+      grad.addColorStop(1, '#b9f2df');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, barW, h);
+    }
+
     ctx.fillStyle = '#6f9981';
     ctx.font = '12px system-ui';
     ctx.textAlign = 'center';
