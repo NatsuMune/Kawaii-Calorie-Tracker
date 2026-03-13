@@ -1,9 +1,14 @@
 const STORAGE_KEY = 'kawaii-calorie-tracker-v2';
 const LEGACY_STORAGE_KEY = 'kawaii-calorie-tracker-v1';
-const state = loadState();
+const DB_NAME = 'kawaii-calorie-tracker-db';
+const DB_STORE = 'state';
+const DB_RECORD_KEY = 'primary';
+const DEFAULT_STATE = Object.freeze({ entries: [], settings: { goal: 2000, haptics: true } });
+const state = createDefaultState();
 let deferredPrompt = null;
 let editingEntryId = null;
 let historyQuery = '';
+let storageWarningShown = false;
 
 const MEAL_TYPE_LABELS = {
   breakfast: '早餐',
@@ -46,12 +51,13 @@ const els = {
 
 init();
 
-function init() {
+async function init() {
   bindNav();
   bindForm();
   bindSettings();
   bindHistory();
   bindPwa();
+  await hydrateState();
   renderAll();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(() => {
@@ -60,15 +66,40 @@ function init() {
   }
 }
 
-function loadState() {
-  const fallback = { entries: [], settings: { goal: 2000, haptics: true } };
+function createDefaultState() {
+  return JSON.parse(JSON.stringify(DEFAULT_STATE));
+}
+
+async function hydrateState() {
+  const local = loadStateFromLocalStorage();
+  if (local) {
+    replaceState(local);
+    void saveStateToIndexedDb(local);
+    return;
+  }
+
+  const persisted = await loadStateFromIndexedDb();
+  if (persisted) {
+    replaceState(persisted);
+    try {
+      saveStateToLocalStorage(persisted);
+    } catch (err) {
+      reportStorageIssue('本地存储读取不稳定，暂时改用备用存储。', err);
+    }
+    return;
+  }
+
+  replaceState(createDefaultState());
+}
+
+function loadStateFromLocalStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return sanitizeState(parsed);
-  } catch {
-    return fallback;
+    if (!raw) return null;
+    return sanitizeState(JSON.parse(raw));
+  } catch (err) {
+    reportStorageIssue('本地存储读取失败，正在尝试备用存储。', err);
+    return null;
   }
 }
 
@@ -93,10 +124,80 @@ function sanitizeState(parsed) {
   };
 }
 
+function replaceState(nextState) {
+  state.entries = nextState.entries;
+  state.settings = nextState.settings;
+}
+
 function saveState() {
-  const serialized = JSON.stringify(state);
+  const snapshot = sanitizeState(state);
+  replaceState(snapshot);
+
+  try {
+    saveStateToLocalStorage(snapshot);
+  } catch (err) {
+    reportStorageIssue('写入 localStorage 失败，已改存到备用存储。', err);
+  }
+
+  void saveStateToIndexedDb(snapshot).catch((err) => {
+    reportStorageIssue('备用存储也写入失败了。', err);
+  });
+}
+
+function saveStateToLocalStorage(snapshot) {
+  const serialized = JSON.stringify(snapshot);
   localStorage.setItem(STORAGE_KEY, serialized);
   localStorage.setItem(LEGACY_STORAGE_KEY, serialized);
+}
+
+function reportStorageIssue(message, err) {
+  console.error(message, err);
+  if (storageWarningShown) return;
+  storageWarningShown = true;
+  setTimeout(() => toast(message), 50);
+}
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function loadStateFromIndexedDb() {
+  if (!('indexedDB' in window)) return null;
+  try {
+    const db = await openDb();
+    const result = await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readonly');
+      const store = tx.objectStore(DB_STORE);
+      const request = store.get(DB_RECORD_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return result ? sanitizeState(result) : null;
+  } catch (err) {
+    reportStorageIssue('读取备用存储失败。', err);
+    return null;
+  }
+}
+
+async function saveStateToIndexedDb(snapshot) {
+  if (!('indexedDB' in window)) return;
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(DB_STORE).put(snapshot, DB_RECORD_KEY);
+  });
+  db.close();
 }
 
 function bindNav() {
