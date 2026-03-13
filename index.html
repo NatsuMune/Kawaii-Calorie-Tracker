@@ -24,11 +24,17 @@
 
       <main id="appMain" class="main-content">
         <section class="view active" data-view="dashboard">
-          <div class="hero-card card pop-in">
+          <div id="heroCard" class="hero-card card pop-in">
             <div class="hero-copy">
               <p class="eyebrow">今日摄入</p>
               <h2 id="todayTotal">0</h2>
               <p class="subtle">今天已经记录的热量（kcal）</p>
+
+              <section id="heroStatusCard" class="hero-status-card" aria-live="polite">
+                <p id="remainingLabel" class="eyebrow">还可摄入</p>
+                <strong id="remainingCalories" class="hero-status-value">0 kcal</strong>
+                <p id="remainingHint" class="subtle">距离今日目标还差一点点 ✿</p>
+              </section>
             </div>
             <div class="hero-side">
               <div class="hero-mascot" aria-hidden="true">ʚ₍ᐢ. .ᐢ₎ɞ</div>
@@ -51,16 +57,10 @@
               <strong id="avg7">0 kcal</strong>
             </article>
             <article class="card stat-card">
-              <p id="remainingLabel" class="eyebrow">还可摄入</p>
-              <strong id="remainingCalories">0 kcal</strong>
-              <p id="remainingHint" class="subtle">距离今日目标还差一点点 ✿</p>
+              <p class="eyebrow">记录条数</p>
+              <strong id="entryCount">0</strong>
             </article>
           </div>
-
-          <section class="card stat-card compact-stat-card">
-            <p class="eyebrow">记录条数</p>
-            <strong id="entryCount">0</strong>
-          </section>
 
           <section class="card chart-card layered-card">
             <div class="section-head sticker-head">

@@ -22,6 +22,8 @@ const els = {
   remainingLabel: document.getElementById('remainingLabel'),
   remainingCalories: document.getElementById('remainingCalories'),
   remainingHint: document.getElementById('remainingHint'),
+  heroCard: document.getElementById('heroCard'),
+  heroStatusCard: document.getElementById('heroStatusCard'),
   historyList: document.getElementById('historyList'),
   historySearchInput: document.getElementById('historySearchInput'),
   intakeForm: document.getElementById('intakeForm'),
@@ -321,6 +323,8 @@ function renderStats() {
   if (els.remainingCalories) {
     els.remainingCalories.classList.toggle('over-goal-value', over);
   }
+  els.heroCard?.classList.toggle('hero-over-goal', over);
+  els.heroStatusCard?.classList.toggle('hero-status-over', over);
   updateGoalRing(percent);
 }
 

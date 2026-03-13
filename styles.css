@@ -168,7 +168,11 @@ h3 { font-size: 1.18rem; }
     radial-gradient(circle at top right, rgba(255,255,255,.6), transparent 30%),
     linear-gradient(135deg, rgba(126,220,154,.2), rgba(199,240,212,.44));
 }
-.hero-copy { flex: 1; }
+.hero-copy {
+  flex: 1;
+  display: grid;
+  gap: 12px;
+}
 .hero-side {
   display: grid;
   justify-items: center;
@@ -216,6 +220,28 @@ h3 { font-size: 1.18rem; }
 }
 .goal-ring-label strong { font-size: 1.1rem; }
 .goal-ring-label span { font-size: .78rem; color: var(--muted); }
+.hero-status-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(255,255,255,.78);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.62);
+}
+.hero-status-value {
+  font-size: 2rem;
+  line-height: 1;
+}
+.hero-status-over {
+  background: rgba(255, 244, 247, .88);
+  border-color: rgba(255, 159, 176, .45);
+}
+.hero-over-goal {
+  background:
+    radial-gradient(circle at top right, rgba(255,255,255,.6), transparent 30%),
+    linear-gradient(135deg, rgba(255,159,176,.22), rgba(255,214,226,.52));
+}
 @keyframes floaty {
   0%,100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
@@ -229,10 +255,6 @@ h3 { font-size: 1.18rem; }
 .stat-card, .chart-card, .history-card, .form-card, .settings-card {
   padding: 22px;
   margin-top: 14px;
-}
-.compact-stat-card {
-  display: grid;
-  gap: 6px;
 }
 .section-head {
   display: flex;
