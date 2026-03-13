@@ -24,6 +24,7 @@ Then open:
 - Best on iPhone-sized screens, including large Pro/Pro Max layouts.
 - Haptics use the Web Vibration API when supported.
 - Data is stored only on-device in the browser.
+- For reliable offline use, open the app once while online so the service worker can cache the app shell, then install it to the home screen if you want a more app-like offline experience.
 
 
 ## Live reload (recommended while iterating)
