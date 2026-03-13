@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+    <meta name="theme-color" content="#7edc9a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="卡路里大作战" />
+    <title>卡路里大作战</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar glass tape-deco">
+        <div>
+          <p class="eyebrow">今天也一起努力呀 ✿</p>
+          <h1 class="app-title">卡路里大作战</h1>
+        </div>
+        <button id="installBtn" class="ghost-btn hidden" aria-label="安装应用">安装</button>
+      </header>
+
+      <main id="appMain" class="main-content">
+        <section class="view active" data-view="dashboard">
+          <div class="hero-card card pop-in">
+            <div class="hero-copy">
+              <p class="eyebrow">今日摄入</p>
+              <h2 id="todayTotal">0</h2>
+              <p class="subtle">今天已经记录的热量（kcal）</p>
+            </div>
+            <div class="hero-side">
+              <div class="hero-mascot" aria-hidden="true">ʚ₍ᐢ. .ᐢ₎ɞ</div>
+              <div class="goal-ring-wrap">
+                <svg class="goal-ring" viewBox="0 0 120 120" aria-hidden="true">
+                  <circle class="goal-ring-bg" cx="60" cy="60" r="46"></circle>
+                  <circle id="goalRingProgress" class="goal-ring-progress" cx="60" cy="60" r="46"></circle>
+                </svg>
+                <div class="goal-ring-label">
+                  <strong id="goalPercent">0%</strong>
+                  <span>目标</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <article class="card stat-card">
+              <p class="eyebrow">7日平均</p>
+              <strong id="avg7">0 kcal</strong>
+            </article>
+            <article class="card stat-card">
+              <p id="remainingLabel" class="eyebrow">还可摄入</p>
+              <strong id="remainingCalories">0 kcal</strong>
+              <p id="remainingHint" class="subtle">距离今日目标还差一点点 ✿</p>
+            </article>
+          </div>
+
+          <section class="card stat-card compact-stat-card">
+            <p class="eyebrow">记录条数</p>
+            <strong id="entryCount">0</strong>
+          </section>
+
+          <section class="card chart-card layered-card">
+            <div class="section-head sticker-head">
+              <h3>每周图表</h3>
+              <span class="sparkle">✦</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="weeklyChart" width="320" height="180"></canvas>
+            </div>
+          </section>
+
+          <section class="card history-card layered-card">
+            <div class="section-head sticker-head">
+              <h3>最近记录</h3>
+              <span class="subtle date-chip">最近 20 条</span>
+            </div>
+            <label class="history-search-wrap" for="historySearchInput">
+              <span class="subtle">搜索记录</span>
+              <input id="historySearchInput" type="search" placeholder="输入食物名称试试，例如：奶茶" autocomplete="off" />
+            </label>
+            <div id="historyList" class="history-list"></div>
+          </section>
+        </section>
+
+        <section class="view" data-view="log">
+          <section class="card form-card pop-in layered-card notebook-card">
+            <div class="section-head sticker-head">
+              <h3>记录摄入</h3>
+              <span class="sparkle">♡</span>
+            </div>
+            <form id="intakeForm" class="intake-form">
+              <div id="editingBanner" class="editing-banner hidden">
+                <div>
+                  <strong>正在编辑记录</strong>
+                  <p class="subtle">修改后保存即可覆盖原记录。</p>
+                </div>
+                <button id="cancelEditBtn" type="button" class="ghost-btn compact-btn">取消</button>
+              </div>
+              <label>
+                <span>吃了什么？</span>
+                <input id="intakeText" name="text" type="text" maxlength="120" placeholder="例如：草莓可丽饼" required />
+              </label>
+              <label>
+                <span>热量</span>
+                <input id="intakeCalories" name="calories" type="number" min="0" max="9999" inputmode="numeric" placeholder="例如：420" required />
+              </label>
+              <button id="submitEntryBtn" type="submit" class="primary-btn">保存记录</button>
+            </form>
+            <p id="saveHint" class="save-hint">所有数据只保存在这台设备的本地浏览器里。</p>
+          </section>
+        </section>
+
+        <section class="view" data-view="settings">
+          <section class="card settings-card pop-in layered-card notebook-card">
+            <div class="section-head sticker-head">
+              <h3>设置</h3>
+              <span class="sparkle">✿</span>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>每日目标</strong>
+                <p class="subtle">会显示在首页的圆环进度里。</p>
+              </div>
+              <input id="goalInput" type="number" min="0" max="9999" inputmode="numeric" />
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>震动反馈</strong>
+                <p class="subtle">点击和保存时会轻震一下。</p>
+              </div>
+              <label class="switch">
+                <input id="hapticsToggle" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="backup-actions">
+              <button id="exportDataBtn" type="button" class="ghost-btn">导出备份</button>
+              <label class="ghost-btn import-btn" for="importDataInput">导入备份</label>
+              <input id="importDataInput" type="file" accept="application/json" hidden />
+            </div>
+            <button id="clearDataBtn" class="danger-btn">清空全部数据</button>
+          </section>
+        </section>
+      </main>
+
+      <nav class="bottom-nav glass" aria-label="底部导航">
+        <button class="nav-btn active" data-target="dashboard">
+          <span>🏠</span><small>主页</small>
+        </button>
+        <button class="nav-btn" data-target="log">
+          <span>🍓</span><small>记录</small>
+        </button>
+        <button class="nav-btn" data-target="settings">
+          <span>⚙️</span><small>设置</small>
+        </button>
+      </nav>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

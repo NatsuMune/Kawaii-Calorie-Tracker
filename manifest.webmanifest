@@ -1,0 +1,17 @@
+{
+  "name": "卡路里大作战",
+  "short_name": "卡路里",
+  "description": "一个可爱风格的本地优先热量记录 PWA。",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f3fff4",
+  "theme_color": "#7edc9a",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
