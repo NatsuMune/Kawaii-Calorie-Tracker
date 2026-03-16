@@ -4,6 +4,16 @@ const DB_NAME = 'kawaii-calorie-tracker-db';
 const DB_STORE = 'state';
 const DB_RECORD_KEY = 'primary';
 const DEFAULT_STATE = Object.freeze({ entries: [], settings: { goal: 2000 } });
+const QUICK_ADD_TEMPLATES = Object.freeze([
+  { text: '拿铁', calories: 180, mealType: 'breakfast', emoji: '☕️' },
+  { text: '白煮蛋', calories: 78, mealType: 'breakfast', emoji: '🥚' },
+  { text: '米饭一碗', calories: 232, mealType: 'lunch', emoji: '🍚' },
+  { text: '鸡胸肉沙拉', calories: 320, mealType: 'lunch', emoji: '🥗' },
+  { text: '奶茶', calories: 360, mealType: 'snack', emoji: '🧋' },
+  { text: '香蕉', calories: 105, mealType: 'snack', emoji: '🍌' },
+  { text: '寿司便当', calories: 520, mealType: 'dinner', emoji: '🍱' },
+  { text: '烤三文鱼', calories: 410, mealType: 'dinner', emoji: '🐟' }
+]);
 const state = createDefaultState();
 let deferredPrompt = null;
 let editingEntryId = null;
@@ -35,6 +45,7 @@ const els = {
   intakeText: document.getElementById('intakeText'),
   intakeCalories: document.getElementById('intakeCalories'),
   intakeMealType: document.getElementById('intakeMealType'),
+  intakeLoggedAt: document.getElementById('intakeLoggedAt'),
   submitEntryBtn: document.getElementById('submitEntryBtn'),
   editingBanner: document.getElementById('editingBanner'),
   cancelEditBtn: document.getElementById('cancelEditBtn'),
@@ -43,6 +54,7 @@ const els = {
   exportDataBtn: document.getElementById('exportDataBtn'),
   importDataInput: document.getElementById('importDataInput'),
   installBtn: document.getElementById('installBtn'),
+  quickAddList: document.getElementById('quickAddList'),
   weeklyChart: document.getElementById('weeklyChart'),
   goalRingProgress: document.getElementById('goalRingProgress'),
   goalPercent: document.getElementById('goalPercent')
@@ -55,6 +67,7 @@ async function init() {
   bindForm();
   bindSettings();
   bindHistory();
+  bindQuickAdd();
   bindPwa();
   await hydrateState();
   renderAll();
@@ -112,7 +125,7 @@ function sanitizeState(parsed) {
             text: String(entry.text || '').trim().slice(0, 120),
             calories: Math.max(0, Number(entry.calories) || 0),
             mealType: sanitizeMealType(entry.mealType),
-            createdAt: entry.createdAt || new Date().toISOString()
+            createdAt: normalizeIsoDate(entry.createdAt) || new Date().toISOString()
           }))
           .filter((entry) => entry.text)
       : [],
@@ -224,6 +237,7 @@ function bindForm() {
       const text = (els.intakeText?.value || '').trim();
       const calories = Number(els.intakeCalories?.value);
       const mealType = sanitizeMealType(els.intakeMealType?.value);
+      const createdAt = resolveEntryTimestamp(els.intakeLoggedAt?.value);
       if (!text || !Number.isFinite(calories) || calories < 0) {
         toast('请输入有效的食物名称和热量 ✨');
         return false;
@@ -239,6 +253,7 @@ function bindForm() {
         entry.text = text;
         entry.calories = calories;
         entry.mealType = mealType;
+        entry.createdAt = createdAt;
         saveState();
         renderAll();
         stopEditing();
@@ -253,12 +268,12 @@ function bindForm() {
         text,
         calories,
         mealType,
-        createdAt: new Date().toISOString()
+        createdAt
       };
       state.entries.unshift(entry);
       saveState();
       renderAll();
-      els.intakeForm.reset();
+      stopEditing();
       toast('已保存 ♡');
       pulse([12]);
       switchView('dashboard');
@@ -314,6 +329,13 @@ function bindHistory() {
       startEditing(editBtn.dataset.editId);
       return;
     }
+
+    const duplicateBtn = e.target.closest('[data-duplicate-id]');
+    if (duplicateBtn) {
+      duplicateEntry(duplicateBtn.dataset.duplicateId);
+      return;
+    }
+
     const deleteBtn = e.target.closest('[data-delete-id]');
     if (!deleteBtn) return;
     const entry = state.entries.find((item) => item.id === deleteBtn.dataset.deleteId);
@@ -329,6 +351,48 @@ function bindHistory() {
   });
 }
 
+function bindQuickAdd() {
+  els.quickAddList?.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-template-index]');
+    if (!button) return;
+    const template = QUICK_ADD_TEMPLATES[Number(button.dataset.templateIndex)];
+    if (!template) return;
+    applyTemplate(template);
+  });
+}
+
+function applyTemplate(template) {
+  if (els.intakeText) els.intakeText.value = template.text;
+  if (els.intakeCalories) els.intakeCalories.value = template.calories;
+  if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(template.mealType);
+  if (!editingEntryId && els.intakeLoggedAt && !els.intakeLoggedAt.value) {
+    els.intakeLoggedAt.value = toDatetimeLocalValue(new Date());
+  }
+  els.intakeText?.focus();
+  toast(`已填入 ${template.text}`);
+  pulse([8, 16, 8]);
+}
+
+function duplicateEntry(entryId) {
+  const entry = state.entries.find((item) => item.id === entryId);
+  if (!entry) {
+    toast('找不到这条记录');
+    return;
+  }
+
+  state.entries.unshift({
+    id: makeEntryId(),
+    text: entry.text,
+    calories: entry.calories,
+    mealType: entry.mealType,
+    createdAt: new Date().toISOString()
+  });
+  saveState();
+  renderAll();
+  toast(`已再记一次 ${entry.text} ♡`);
+  pulse([10, 14, 10]);
+}
+
 function startEditing(entryId) {
   const entry = state.entries.find((item) => item.id === entryId);
   if (!entry) {
@@ -339,6 +403,7 @@ function startEditing(entryId) {
   if (els.intakeText) els.intakeText.value = entry.text;
   if (els.intakeCalories) els.intakeCalories.value = entry.calories;
   if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(entry.mealType);
+  if (els.intakeLoggedAt) els.intakeLoggedAt.value = toDatetimeLocalValue(entry.createdAt);
   renderEditorState();
   switchView('log');
   els.intakeText?.focus();
@@ -349,6 +414,9 @@ function startEditing(entryId) {
 function stopEditing(keepInputs = false) {
   editingEntryId = null;
   if (!keepInputs) els.intakeForm?.reset();
+  if (els.intakeLoggedAt && !keepInputs) {
+    els.intakeLoggedAt.value = toDatetimeLocalValue(new Date());
+  }
   renderEditorState();
 }
 
@@ -379,6 +447,7 @@ function renderAll() {
   renderStats();
   renderHistory();
   renderSettings();
+  renderQuickAdd();
   renderChart();
   renderEditorState();
 }
@@ -460,6 +529,7 @@ function renderHistory() {
         <div class="history-calories">${entry.calories} kcal</div>
         <div class="history-btn-row">
           <button type="button" class="mini-ghost-btn" data-edit-id="${entry.id}" aria-label="编辑这条记录">编辑</button>
+          <button type="button" class="mini-ghost-btn" data-duplicate-id="${entry.id}" aria-label="再记一次这条记录">再记一次</button>
           <button type="button" class="mini-danger-btn" data-delete-id="${entry.id}" aria-label="删除这条记录">删除</button>
         </div>
       </div>
@@ -469,6 +539,19 @@ function renderHistory() {
 
 function renderSettings() {
   if (els.goalInput) els.goalInput.value = state.settings.goal;
+}
+
+function renderQuickAdd() {
+  if (!els.quickAddList) return;
+  els.quickAddList.innerHTML = QUICK_ADD_TEMPLATES.map((template, index) => `
+    <button type="button" class="quick-add-btn" data-template-index="${index}" aria-label="快捷填入 ${template.text}">
+      <span class="quick-add-emoji" aria-hidden="true">${template.emoji}</span>
+      <span class="quick-add-copy">
+        <strong>${template.text}</strong>
+        <small>${template.calories} kcal · ${getMealTypeLabel(template.mealType)}</small>
+      </span>
+    </button>
+  `).join('');
 }
 
 function renderChart() {
@@ -548,18 +631,6 @@ function renderChart() {
   });
 }
 
-function roundRect(ctx, x, y, w, h, r, fill) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-}
-
 function last7DaysTotals(entries) {
   const days = [];
   const byDay = Object.create(null);
@@ -606,9 +677,10 @@ function formatDate(iso) {
 
 function exportBackup() {
   try {
+    const exportedAt = new Date();
     const payload = {
       version: 1,
-      exportedAt: new Date().toISOString(),
+      exportedAt: exportedAt.toISOString(),
       app: 'kawaii-calorie-tracker',
       data: state
     };
@@ -616,7 +688,7 @@ function exportBackup() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `kawaii-calorie-backup-${localDateKey()}.json`;
+    a.download = `kawaii-calorie-backup-${formatTimestampForFilename(exportedAt)}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -672,6 +744,33 @@ function makeEntryId() {
   return (globalThis.crypto && crypto.randomUUID)
     ? crypto.randomUUID()
     : `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function resolveEntryTimestamp(value) {
+  return normalizeIsoDate(value) || new Date().toISOString();
+}
+
+function normalizeIsoDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function toDatetimeLocalValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+}
+
+function formatTimestampForFilename(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}-${hh}${mm}`;
 }
 
 function toast(message) {

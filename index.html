@@ -91,6 +91,18 @@
               <h3>记录摄入</h3>
               <span class="sparkle">♡</span>
             </div>
+
+            <section class="quick-add-card" aria-labelledby="quickAddTitle">
+              <div class="section-head quick-add-head">
+                <div>
+                  <h4 id="quickAddTitle">快捷模板</h4>
+                  <p class="subtle">常吃的先点一下，再微调就好。</p>
+                </div>
+                <span class="sparkle">🍡</span>
+              </div>
+              <div id="quickAddList" class="quick-add-list"></div>
+            </section>
+
             <form id="intakeForm" class="intake-form">
               <div id="editingBanner" class="editing-banner hidden">
                 <div>
@@ -116,6 +128,10 @@
                   <option value="snack">零食</option>
                   <option value="other">其他</option>
                 </select>
+              </label>
+              <label>
+                <span>记录时间</span>
+                <input id="intakeLoggedAt" name="loggedAt" type="datetime-local" />
               </label>
               <button id="submitEntryBtn" type="submit" class="primary-btn">保存记录</button>
             </form>
