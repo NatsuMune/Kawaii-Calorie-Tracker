@@ -3,7 +3,7 @@ const LEGACY_STORAGE_KEY = 'kawaii-calorie-tracker-v1';
 const DB_NAME = 'kawaii-calorie-tracker-db';
 const DB_STORE = 'state';
 const DB_RECORD_KEY = 'primary';
-const DEFAULT_STATE = Object.freeze({ entries: [], settings: { goal: 2000 } });
+const DEFAULT_STATE = Object.freeze({ entries: [], settings: { goal: 2000, favorites: [] } });
 const QUICK_ADD_TEMPLATES = Object.freeze([
   { text: '拿铁', calories: 180, mealType: 'breakfast', emoji: '☕️' },
   { text: '白煮蛋', calories: 78, mealType: 'breakfast', emoji: '🥚' },
@@ -19,6 +19,7 @@ let deferredPrompt = null;
 let editingEntryId = null;
 let historyQuery = '';
 let historyDateFilter = '';
+let historyMealFilter = '';
 let storageWarningShown = false;
 
 const MEAL_TYPE_LABELS = {
@@ -43,6 +44,7 @@ const els = {
   historyList: document.getElementById('historyList'),
   historySearchInput: document.getElementById('historySearchInput'),
   historyDateFilter: document.getElementById('historyDateFilter'),
+  historyMealFilter: document.getElementById('historyMealFilter'),
   historyTodayBtn: document.getElementById('historyTodayBtn'),
   historyClearDateBtn: document.getElementById('historyClearDateBtn'),
   intakeForm: document.getElementById('intakeForm'),
@@ -59,6 +61,8 @@ const els = {
   importDataInput: document.getElementById('importDataInput'),
   installBtn: document.getElementById('installBtn'),
   quickAddList: document.getElementById('quickAddList'),
+  favoriteQuickAddWrap: document.getElementById('favoriteQuickAddWrap'),
+  favoriteQuickAddList: document.getElementById('favoriteQuickAddList'),
   weeklyChart: document.getElementById('weeklyChart'),
   goalRingProgress: document.getElementById('goalRingProgress'),
   goalPercent: document.getElementById('goalPercent')
@@ -134,7 +138,8 @@ function sanitizeState(parsed) {
           .filter((entry) => entry.text)
       : [],
     settings: {
-      goal: Math.max(0, Number(parsed.settings?.goal || 2000))
+      goal: Math.max(0, Number(parsed.settings?.goal || 2000)),
+      favorites: sanitizeFavorites(parsed.settings?.favorites)
     }
   };
 }
@@ -332,6 +337,11 @@ function bindHistory() {
     renderHistory();
   });
 
+  els.historyMealFilter?.addEventListener('change', () => {
+    historyMealFilter = sanitizeMealType(els.historyMealFilter.value) === 'other' && !els.historyMealFilter.value ? '' : (els.historyMealFilter.value || '');
+    renderHistory();
+  });
+
   els.historyTodayBtn?.addEventListener('click', () => {
     historyDateFilter = localDateKey();
     if (els.historyDateFilter) els.historyDateFilter.value = historyDateFilter;
@@ -340,7 +350,9 @@ function bindHistory() {
 
   els.historyClearDateBtn?.addEventListener('click', () => {
     historyDateFilter = '';
+    historyMealFilter = '';
     if (els.historyDateFilter) els.historyDateFilter.value = '';
+    if (els.historyMealFilter) els.historyMealFilter.value = '';
     renderHistory();
   });
 
@@ -354,6 +366,12 @@ function bindHistory() {
     const duplicateBtn = e.target.closest('[data-duplicate-id]');
     if (duplicateBtn) {
       duplicateEntry(duplicateBtn.dataset.duplicateId);
+      return;
+    }
+
+    const favoriteBtn = e.target.closest('[data-favorite-id]');
+    if (favoriteBtn) {
+      toggleFavoriteFromEntry(favoriteBtn.dataset.favoriteId);
       return;
     }
 
@@ -373,13 +391,18 @@ function bindHistory() {
 }
 
 function bindQuickAdd() {
-  els.quickAddList?.addEventListener('click', (e) => {
-    const button = e.target.closest('[data-template-index]');
+  const handleClick = (button) => {
     if (!button) return;
-    const template = QUICK_ADD_TEMPLATES[Number(button.dataset.templateIndex)];
+    const source = button.dataset.templateSource || 'default';
+    const index = Number(button.dataset.templateIndex);
+    const templates = source === 'favorite' ? state.settings.favorites : QUICK_ADD_TEMPLATES;
+    const template = templates[index];
     if (!template) return;
     applyTemplate(template);
-  });
+  };
+
+  els.quickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
+  els.favoriteQuickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
 }
 
 function applyTemplate(template) {
@@ -546,6 +569,7 @@ function renderHistory() {
         <div class="history-btn-row">
           <button type="button" class="mini-ghost-btn" data-edit-id="${entry.id}" aria-label="编辑这条记录">编辑</button>
           <button type="button" class="mini-ghost-btn" data-duplicate-id="${entry.id}" aria-label="再记一次这条记录">再记一次</button>
+          <button type="button" class="mini-ghost-btn" data-favorite-id="${entry.id}" aria-label="${isEntryFavorite(entry) ? '取消收藏这条记录' : '收藏这条记录'}">${isEntryFavorite(entry) ? '已收藏' : '收藏'}</button>
           <button type="button" class="mini-danger-btn" data-delete-id="${entry.id}" aria-label="删除这条记录">删除</button>
         </div>
       </div>
@@ -559,15 +583,12 @@ function renderSettings() {
 
 function renderQuickAdd() {
   if (!els.quickAddList) return;
-  els.quickAddList.innerHTML = QUICK_ADD_TEMPLATES.map((template, index) => `
-    <button type="button" class="quick-add-btn" data-template-index="${index}" aria-label="快捷填入 ${template.text}">
-      <span class="quick-add-emoji" aria-hidden="true">${template.emoji}</span>
-      <span class="quick-add-copy">
-        <strong>${template.text}</strong>
-        <small>${template.calories} kcal · ${getMealTypeLabel(template.mealType)}</small>
-      </span>
-    </button>
-  `).join('');
+  els.quickAddList.innerHTML = renderQuickAddButtons(QUICK_ADD_TEMPLATES, 'default');
+  if (els.favoriteQuickAddList && els.favoriteQuickAddWrap) {
+    const hasFavorites = state.settings.favorites.length > 0;
+    els.favoriteQuickAddWrap.classList.toggle('hidden', !hasFavorites);
+    els.favoriteQuickAddList.innerHTML = hasFavorites ? renderQuickAddButtons(state.settings.favorites, 'favorite') : '';
+  }
 }
 
 function renderChart() {
@@ -761,13 +782,15 @@ function matchesHistoryFilters(entry) {
   })();
 
   const matchesDate = !historyDateFilter || toLocalDateKey(entry.createdAt) === historyDateFilter;
-  return matchesQuery && matchesDate;
+  const matchesMeal = !historyMealFilter || sanitizeMealType(entry.mealType) === historyMealFilter;
+  return matchesQuery && matchesDate && matchesMeal;
 }
 
 function buildEmptyHistoryHint() {
   const parts = [];
   if (historyQuery) parts.push(`关键词：${historyQuery}`);
   if (historyDateFilter) parts.push(`日期：${historyDateFilter}`);
+  if (historyMealFilter) parts.push(`餐别：${getMealTypeLabel(historyMealFilter)}`);
   return parts.length
     ? `当前筛选条件下没有记录（${parts.join('，')}）。试试清空筛选吧。`
     : '试试别的关键词，或者清空搜索词吧。';
@@ -785,6 +808,71 @@ function buildImportSummary(incoming, fileName) {
 
 function sortedEntriesFrom(entries) {
   return [...entries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function renderQuickAddButtons(templates, source) {
+  return templates.map((template, index) => `
+    <button type="button" class="quick-add-btn" data-template-source="${source}" data-template-index="${index}" aria-label="快捷填入 ${template.text}">
+      <span class="quick-add-emoji" aria-hidden="true">${template.emoji || '🍽️'}</span>
+      <span class="quick-add-copy">
+        <strong>${template.text}</strong>
+        <small>${template.calories} kcal · ${getMealTypeLabel(template.mealType)}</small>
+      </span>
+    </button>
+  `).join('');
+}
+
+function sanitizeFavorites(favorites) {
+  return Array.isArray(favorites)
+    ? favorites
+        .filter((item) => item && typeof item === 'object')
+        .map((item) => ({
+          text: String(item.text || '').trim().slice(0, 120),
+          calories: Math.max(0, Number(item.calories) || 0),
+          mealType: sanitizeMealType(item.mealType),
+          emoji: String(item.emoji || '⭐️').trim().slice(0, 4) || '⭐️'
+        }))
+        .filter((item) => item.text)
+    : [];
+}
+
+function toggleFavoriteFromEntry(entryId) {
+  const entry = state.entries.find((item) => item.id === entryId);
+  if (!entry) {
+    toast('找不到这条记录');
+    return;
+  }
+
+  const key = makeFavoriteKey(entry);
+  const existingIndex = state.settings.favorites.findIndex((item) => makeFavoriteKey(item) === key);
+
+  if (existingIndex >= 0) {
+    state.settings.favorites.splice(existingIndex, 1);
+    saveState();
+    renderAll();
+    toast(`已取消收藏 ${entry.text}`);
+    return;
+  }
+
+  state.settings.favorites.unshift({
+    text: entry.text,
+    calories: entry.calories,
+    mealType: entry.mealType,
+    emoji: '⭐️'
+  });
+  state.settings.favorites = state.settings.favorites.slice(0, 8);
+  saveState();
+  renderAll();
+  toast(`已收藏 ${entry.text}`);
+}
+
+function makeFavoriteKey(item) {
+  return `${String(item.text).trim().toLowerCase()}::${Number(item.calories) || 0}::${sanitizeMealType(item.mealType)}`;
+}
+
+function isEntryFavorite(entry) {
+  const key = makeFavoriteKey(entry);
+  return state.settings.favorites.some((item) => makeFavoriteKey(item) === key);
 }
 
 function sanitizeMealType(value) {

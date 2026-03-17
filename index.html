@@ -77,14 +77,25 @@
               <h3>最近记录</h3>
               <span class="subtle date-chip">最近 20 条</span>
             </div>
-            <div class="history-filters">
-              <label class="history-search-wrap" for="historySearchInput">
+            <div class="history-filters history-filters-grid">
+              <label class="history-search-wrap history-filter-wide" for="historySearchInput">
                 <span class="subtle">搜索记录</span>
                 <input id="historySearchInput" type="search" placeholder="输入食物名称试试，例如：奶茶" autocomplete="off" />
               </label>
               <label class="history-date-wrap" for="historyDateFilter">
                 <span class="subtle">按日期筛选</span>
                 <input id="historyDateFilter" type="date" />
+              </label>
+              <label class="history-meal-wrap" for="historyMealFilter">
+                <span class="subtle">餐别筛选</span>
+                <select id="historyMealFilter">
+                  <option value="">全部餐别</option>
+                  <option value="breakfast">早餐</option>
+                  <option value="lunch">午餐</option>
+                  <option value="dinner">晚餐</option>
+                  <option value="snack">零食</option>
+                  <option value="other">其他</option>
+                </select>
               </label>
             </div>
             <div class="history-filter-actions">
@@ -109,6 +120,13 @@
                   <p class="subtle">常吃的先点一下，再微调就好。</p>
                 </div>
                 <span class="sparkle">🍡</span>
+              </div>
+              <div id="favoriteQuickAddWrap" class="favorite-quick-add-wrap hidden">
+                <div class="favorite-quick-add-head">
+                  <strong>我的收藏</strong>
+                  <span class="subtle">从历史记录一键加入</span>
+                </div>
+                <div id="favoriteQuickAddList" class="quick-add-list"></div>
               </div>
               <div id="quickAddList" class="quick-add-list"></div>
             </section>

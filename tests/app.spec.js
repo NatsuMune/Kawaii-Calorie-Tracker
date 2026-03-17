@@ -17,12 +17,14 @@ async function seedEntries(page) {
   await page.getByRole('button', { name: '记录' }).click();
   await page.locator('#intakeText').fill('今天的午餐');
   await page.locator('#intakeCalories').fill('450');
+  await page.locator('#intakeMealType').selectOption('lunch');
   await page.locator('#intakeLoggedAt').fill(fmt(now, '12', '00'));
   await page.getByRole('button', { name: '保存记录' }).click();
 
   await page.locator('.nav-btn[data-target="log"]').click();
   await page.locator('#intakeText').fill('昨天的奶茶');
   await page.locator('#intakeCalories').fill('300');
+  await page.locator('#intakeMealType').selectOption('snack');
   await page.locator('#intakeLoggedAt').fill(fmt(yesterday, '15', '20'));
   await page.getByRole('button', { name: '保存记录' }).click();
 
@@ -147,4 +149,35 @@ test('mobile log view matches visual baseline', async ({ page }) => {
     animations: 'disabled',
     maxDiffPixelRatio: 0.03,
   });
+});
+
+
+test('history meal filter shows only matching meal type entries', async ({ page }) => {
+  await seedEntries(page);
+  await page.locator('#historyMealFilter').selectOption('lunch');
+
+  await expect(page.locator('#historyList')).toContainText('今天的午餐');
+  await expect(page.locator('#historyList')).not.toContainText('昨天的奶茶');
+});
+
+test('favorite entry appears in favorite quick-add section and can be reused', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('希腊酸奶');
+  await page.locator('#intakeCalories').fill('160');
+  await page.locator('#intakeMealType').selectOption('breakfast');
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  await page.getByRole('button', { name: '收藏这条记录' }).click();
+  await page.locator('.nav-btn[data-target="log"]').click();
+
+  await expect(page.locator('#favoriteQuickAddWrap')).toBeVisible();
+  await expect(page.locator('#favoriteQuickAddList')).toContainText('希腊酸奶');
+
+  await page.locator('#intakeText').fill('');
+  await page.locator('#intakeCalories').fill('');
+  await page.getByRole('button', { name: /快捷填入 希腊酸奶/ }).click();
+
+  await expect(page.locator('#intakeText')).toHaveValue('希腊酸奶');
+  await expect(page.locator('#intakeCalories')).toHaveValue('160');
+  await expect(page.locator('#intakeMealType')).toHaveValue('breakfast');
 });
