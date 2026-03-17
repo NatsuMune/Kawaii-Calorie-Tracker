@@ -9,6 +9,26 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
+async function seedEntries(page) {
+  const now = new Date();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const fmt = (d, hh, mm) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${hh}:${mm}`;
+
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('今天的午餐');
+  await page.locator('#intakeCalories').fill('450');
+  await page.locator('#intakeLoggedAt').fill(fmt(now, '12', '00'));
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  await page.locator('.nav-btn[data-target="log"]').click();
+  await page.locator('#intakeText').fill('昨天的奶茶');
+  await page.locator('#intakeCalories').fill('300');
+  await page.locator('#intakeLoggedAt').fill(fmt(yesterday, '15', '20'));
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  return { now, yesterday };
+}
+
 test('quick-add fills the form and saves an entry for today', async ({ page }) => {
   await page.getByRole('button', { name: '记录' }).click();
   await page.getByRole('button', { name: /快捷填入 拿铁/ }).click();
@@ -54,23 +74,8 @@ test('backfilled entries keep history but do not affect today total', async ({ p
   await expect(page.locator('#historyList')).toContainText('昨晚宵夜');
 });
 
-
 test('history date filter shows only matching day entries', async ({ page }) => {
-  const now = new Date();
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const fmt = (d, hh, mm) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${hh}:${mm}`;
-
-  await page.getByRole('button', { name: '记录' }).click();
-  await page.locator('#intakeText').fill('今天的午餐');
-  await page.locator('#intakeCalories').fill('450');
-  await page.locator('#intakeLoggedAt').fill(fmt(now, '12', '00'));
-  await page.getByRole('button', { name: '保存记录' }).click();
-
-  await page.locator('.nav-btn[data-target="log"]').click();
-  await page.locator('#intakeText').fill('昨天的奶茶');
-  await page.locator('#intakeCalories').fill('300');
-  await page.locator('#intakeLoggedAt').fill(fmt(yesterday, '15', '20'));
-  await page.getByRole('button', { name: '保存记录' }).click();
+  const { yesterday } = await seedEntries(page);
 
   const yyyy = yesterday.getFullYear();
   const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
@@ -106,4 +111,40 @@ test('import asks with backup summary before overwrite', async ({ page }) => {
   });
 
   await expect(page.locator('#entryCount')).toHaveText('0');
+});
+
+test('mobile dashboard layout stays within viewport and matches visual baseline', async ({ page }) => {
+  await seedEntries(page);
+
+  const viewport = page.viewportSize();
+  const appShellBox = await page.locator('.app-shell').boundingBox();
+  const historyDateBox = await page.locator('#historyDateFilter').boundingBox();
+  const bottomNavBox = await page.locator('.bottom-nav').boundingBox();
+
+  expect(appShellBox).not.toBeNull();
+  expect(historyDateBox).not.toBeNull();
+  expect(bottomNavBox).not.toBeNull();
+
+  expect(appShellBox.x).toBeGreaterThanOrEqual(0);
+  expect(appShellBox.x + appShellBox.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(historyDateBox.x + historyDateBox.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(bottomNavBox.x).toBeGreaterThanOrEqual(0);
+  expect(bottomNavBox.x + bottomNavBox.width).toBeLessThanOrEqual(viewport.width + 1);
+
+  await expect(page).toHaveScreenshot('mobile-dashboard.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixelRatio: 0.03,
+  });
+});
+
+test('mobile log view matches visual baseline', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.getByRole('button', { name: /快捷填入 拿铁/ }).click();
+
+  await expect(page).toHaveScreenshot('mobile-log-view.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixelRatio: 0.03,
+  });
 });
