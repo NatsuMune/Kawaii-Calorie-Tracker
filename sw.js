@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const APP_SHELL_CACHE = `kawaii-calorie-tracker-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `kawaii-calorie-tracker-runtime-${CACHE_VERSION}`;
 const APP_SHELL_ASSETS = [
