@@ -302,9 +302,25 @@ h2 { font-size: 3.35rem; line-height: 1; }
   min-width: 108px;
   text-align: center;
 }
-.history-search-wrap {
+.history-filters {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+.history-search-wrap,
+.history-date-wrap {
   display: grid;
   gap: 8px;
+}
+.history-search-wrap {
+  margin-bottom: 0;
+}
+.history-filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 .history-search-wrap input[type="search"] {
@@ -609,7 +625,8 @@ h2 { font-size: 3.35rem; line-height: 1; }
     grid-template-columns: 1fr;
   }
   .backup-actions,
-  .quick-add-list {
+  .quick-add-list,
+  .history-filters {
     grid-template-columns: 1fr;
   }
   .history-item {

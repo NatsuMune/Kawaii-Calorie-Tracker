@@ -18,6 +18,7 @@ const state = createDefaultState();
 let deferredPrompt = null;
 let editingEntryId = null;
 let historyQuery = '';
+let historyDateFilter = '';
 let storageWarningShown = false;
 
 const MEAL_TYPE_LABELS = {
@@ -41,6 +42,9 @@ const els = {
   heroStatusCard: document.getElementById('heroStatusCard'),
   historyList: document.getElementById('historyList'),
   historySearchInput: document.getElementById('historySearchInput'),
+  historyDateFilter: document.getElementById('historyDateFilter'),
+  historyTodayBtn: document.getElementById('historyTodayBtn'),
+  historyClearDateBtn: document.getElementById('historyClearDateBtn'),
   intakeForm: document.getElementById('intakeForm'),
   intakeText: document.getElementById('intakeText'),
   intakeCalories: document.getElementById('intakeCalories'),
@@ -323,6 +327,23 @@ function bindHistory() {
     renderHistory();
   });
 
+  els.historyDateFilter?.addEventListener('change', () => {
+    historyDateFilter = els.historyDateFilter.value || '';
+    renderHistory();
+  });
+
+  els.historyTodayBtn?.addEventListener('click', () => {
+    historyDateFilter = localDateKey();
+    if (els.historyDateFilter) els.historyDateFilter.value = historyDateFilter;
+    renderHistory();
+  });
+
+  els.historyClearDateBtn?.addEventListener('click', () => {
+    historyDateFilter = '';
+    if (els.historyDateFilter) els.historyDateFilter.value = '';
+    renderHistory();
+  });
+
   els.historyList?.addEventListener('click', (e) => {
     const editBtn = e.target.closest('[data-edit-id]');
     if (editBtn) {
@@ -501,12 +522,7 @@ function updateGoalRing(percent) {
 function renderHistory() {
   if (!els.historyList) return;
   const entries = sortedEntries();
-  const filtered = historyQuery
-    ? entries.filter((entry) => {
-        const query = historyQuery.toLowerCase();
-        return entry.text.toLowerCase().includes(query) || getMealTypeLabel(entry.mealType).toLowerCase().includes(query);
-      })
-    : entries;
+  const filtered = entries.filter((entry) => matchesHistoryFilters(entry));
   const visible = filtered.slice(0, 20);
 
   if (!entries.length) {
@@ -515,7 +531,7 @@ function renderHistory() {
   }
 
   if (!visible.length) {
-    els.historyList.innerHTML = `<div class="history-item empty-history"><div class="history-meta"><strong>没有找到匹配记录</strong><p class="subtle">试试别的关键词，或者清空搜索词吧：${escapeHtml(historyQuery)}</p></div></div>`;
+    els.historyList.innerHTML = `<div class="history-item empty-history"><div class="history-meta"><strong>没有找到匹配记录</strong><p class="subtle">${escapeHtml(buildEmptyHistoryHint())}</p></div></div>`;
     return;
   }
 
@@ -708,11 +724,16 @@ async function importBackup(e) {
     const raw = await file.text();
     const parsed = JSON.parse(raw);
     const incoming = sanitizeState(parsed.data || parsed);
-    if (!incoming.entries.length && !confirm('这个备份里没有记录，仍然要覆盖当前数据吗？')) {
+    const summary = buildImportSummary(incoming, file.name);
+    if (!incoming.entries.length && !confirm(`${summary}
+
+这个备份里没有记录，仍然要覆盖当前数据吗？`)) {
       e.target.value = '';
       return;
     }
-    const ok = confirm('导入备份会覆盖当前这台设备上的数据，确定继续吗？');
+    const ok = confirm(`${summary}
+
+导入备份会覆盖当前这台设备上的数据，确定继续吗？`);
     if (!ok) {
       e.target.value = '';
       return;
@@ -730,6 +751,40 @@ async function importBackup(e) {
   } finally {
     e.target.value = '';
   }
+}
+
+
+function matchesHistoryFilters(entry) {
+  const matchesQuery = !historyQuery || (() => {
+    const query = historyQuery.toLowerCase();
+    return entry.text.toLowerCase().includes(query) || getMealTypeLabel(entry.mealType).toLowerCase().includes(query);
+  })();
+
+  const matchesDate = !historyDateFilter || toLocalDateKey(entry.createdAt) === historyDateFilter;
+  return matchesQuery && matchesDate;
+}
+
+function buildEmptyHistoryHint() {
+  const parts = [];
+  if (historyQuery) parts.push(`关键词：${historyQuery}`);
+  if (historyDateFilter) parts.push(`日期：${historyDateFilter}`);
+  return parts.length
+    ? `当前筛选条件下没有记录（${parts.join('，')}）。试试清空筛选吧。`
+    : '试试别的关键词，或者清空搜索词吧。';
+}
+
+function buildImportSummary(incoming, fileName) {
+  const entries = sortedEntriesFrom(incoming.entries);
+  const first = entries[entries.length - 1];
+  const last = entries[0];
+  const range = entries.length
+    ? `${formatDate(first.createdAt)} ～ ${formatDate(last.createdAt)}`
+    : '无记录';
+  return `准备导入备份：${fileName}\n记录数：${incoming.entries.length}\n每日目标：${incoming.settings.goal} kcal\n时间范围：${range}`;
+}
+
+function sortedEntriesFrom(entries) {
+  return [...entries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 function sanitizeMealType(value) {
