@@ -181,3 +181,19 @@ test('favorite entry appears in favorite quick-add section and can be reused', a
   await expect(page.locator('#intakeCalories')).toHaveValue('160');
   await expect(page.locator('#intakeMealType')).toHaveValue('breakfast');
 });
+
+
+test('chart can switch between 7-day and 30-day modes', async ({ page }) => {
+  await seedEntries(page);
+
+  await expect(page.locator('#chartTitle')).toHaveText('每周图表');
+  await expect(page.locator('#chartSummary')).toContainText('最近 7 天平均摄入');
+  await expect(page.locator('#chartRange7Btn')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.locator('#chartRange30Btn').click();
+
+  await expect(page.locator('#chartTitle')).toHaveText('30 天趋势');
+  await expect(page.locator('#chartSummary')).toContainText('最近 30 天平均摄入');
+  await expect(page.locator('#chartRange30Btn')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#chartRange7Btn')).toHaveAttribute('aria-pressed', 'false');
+});

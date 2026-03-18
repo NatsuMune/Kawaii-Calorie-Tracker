@@ -9,13 +9,13 @@ module.exports = defineConfig({
       use: {
         ...devices['iPhone 13'],
         browserName: 'chromium',
-        baseURL: 'http://127.0.0.1:4173',
+        baseURL: 'http://127.0.0.1:4174',
       },
     },
   ],
   webServer: {
-    command: 'python3 -m http.server 4173 --bind 127.0.0.1',
-    port: 4173,
+    command: 'python3 -m http.server 4174 --bind 127.0.0.1',
+    port: 4174,
     reuseExistingServer: true,
   },
 });

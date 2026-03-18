@@ -20,6 +20,7 @@ let editingEntryId = null;
 let historyQuery = '';
 let historyDateFilter = '';
 let historyMealFilter = '';
+let chartRangeDays = 7;
 let storageWarningShown = false;
 
 const MEAL_TYPE_LABELS = {
@@ -63,6 +64,10 @@ const els = {
   quickAddList: document.getElementById('quickAddList'),
   favoriteQuickAddWrap: document.getElementById('favoriteQuickAddWrap'),
   favoriteQuickAddList: document.getElementById('favoriteQuickAddList'),
+  chartTitle: document.getElementById('chartTitle'),
+  chartSummary: document.getElementById('chartSummary'),
+  chartRange7Btn: document.getElementById('chartRange7Btn'),
+  chartRange30Btn: document.getElementById('chartRange30Btn'),
   weeklyChart: document.getElementById('weeklyChart'),
   goalRingProgress: document.getElementById('goalRingProgress'),
   goalPercent: document.getElementById('goalPercent')
@@ -76,6 +81,7 @@ async function init() {
   bindSettings();
   bindHistory();
   bindQuickAdd();
+  bindChartControls();
   bindPwa();
   await hydrateState();
   renderAll();
@@ -472,6 +478,18 @@ function renderEditorState() {
   }
 }
 
+
+function bindChartControls() {
+  els.chartRange7Btn?.addEventListener('click', () => {
+    chartRangeDays = 7;
+    renderChart();
+  });
+  els.chartRange30Btn?.addEventListener('click', () => {
+    chartRangeDays = 30;
+    renderChart();
+  });
+}
+
 function bindPwa() {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -500,7 +518,7 @@ function renderStats() {
   const today = localDateKey();
   const entries = sortedEntries();
   const todayTotal = entries.filter(e => toLocalDateKey(e.createdAt) === today).reduce((sum, e) => sum + e.calories, 0);
-  const daily = last7DaysTotals(entries);
+  const daily = getChartDailyTotals(entries, 7);
   const avg7 = daily.reduce((a, b) => a + b.total, 0) / 7;
   const configuredGoal = Math.max(0, Number(state.settings.goal) || 0);
   const goalForPercent = Math.max(1, configuredGoal || 1);
@@ -605,13 +623,11 @@ function renderChart() {
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  const data = last7DaysTotals(state.entries);
+  const data = getChartDailyTotals(state.entries, chartRangeDays);
   const max = Math.max(...data.map(d => d.total), state.settings.goal || 1, 100);
   const pad = { top: 16, right: 8, bottom: 28, left: 8 };
   const chartW = width - pad.left - pad.right;
   const chartH = height - pad.top - pad.bottom;
-  const gap = 10;
-  const barW = chartW / data.length - gap;
   const baselineY = pad.top + chartH;
 
   ctx.strokeStyle = 'rgba(111, 153, 129, 0.14)';
@@ -630,8 +646,11 @@ function renderChart() {
   ctx.lineTo(width - pad.right, baselineY);
   ctx.stroke();
 
+  const dynamicGap = chartRangeDays === 30 ? 4 : 10;
+  const barW = Math.max(4, chartW / data.length - dynamicGap);
+
   data.forEach((item, i) => {
-    const x = pad.left + i * (barW + gap) + gap / 2;
+    const x = pad.left + i * (barW + dynamicGap) + dynamicGap / 2;
     const rawH = item.total > 0 ? (item.total / max) * chartH : 0;
     const h = rawH > 0 ? Math.max(2, rawH) : 0;
     const y = baselineY - h;
@@ -655,39 +674,62 @@ function renderChart() {
         ctx.strokeRect(x, y, barW, h);
       }
 
-      ctx.fillStyle = isToday ? '#3f9f63' : '#6f9981';
-      ctx.font = '11px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${item.total}`, x + barW / 2, Math.max(pad.top + 10, y - 6));
+      if (chartRangeDays <= 7) {
+        ctx.fillStyle = isToday ? '#3f9f63' : '#6f9981';
+        ctx.font = '11px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${item.total}`, x + barW / 2, Math.max(pad.top + 10, y - 6));
+      }
     }
 
-    ctx.fillStyle = isToday ? '#4fbe78' : '#6f9981';
-    ctx.font = isToday ? '700 12px system-ui' : '12px system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillText(item.label, x + barW / 2, height - 8);
+    if (chartRangeDays <= 7 || item.showLabel) {
+      ctx.fillStyle = isToday ? '#4fbe78' : '#6f9981';
+      ctx.font = isToday ? '700 12px system-ui' : '12px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.label, x + barW / 2, height - 8);
+    }
   });
+
+  renderChartMeta(data);
 }
 
-function last7DaysTotals(entries) {
-  const days = [];
+function renderChartMeta(data) {
+  const average = data.length ? Math.round(data.reduce((sum, item) => sum + item.total, 0) / data.length) : 0;
+  if (els.chartTitle) els.chartTitle.textContent = chartRangeDays === 30 ? '30 天趋势' : '每周图表';
+  if (els.chartSummary) els.chartSummary.textContent = chartRangeDays === 30
+    ? `最近 30 天平均摄入 ${average} kcal`
+    : `最近 7 天平均摄入 ${average} kcal`;
+  if (els.chartRange7Btn) {
+    els.chartRange7Btn.setAttribute('aria-pressed', String(chartRangeDays === 7));
+    els.chartRange7Btn.classList.toggle('active-pill', chartRangeDays === 7);
+  }
+  if (els.chartRange30Btn) {
+    els.chartRange30Btn.setAttribute('aria-pressed', String(chartRangeDays === 30));
+    els.chartRange30Btn.classList.toggle('active-pill', chartRangeDays === 30);
+  }
+}
+
+function getChartDailyTotals(entries, days) {
+  const items = [];
   const byDay = Object.create(null);
   const todayKey = localDateKey();
   entries.forEach(entry => {
     const key = toLocalDateKey(entry.createdAt);
     byDay[key] = (byDay[key] || 0) + Number(entry.calories || 0);
   });
-  for (let i = 6; i >= 0; i--) {
+  for (let i = days - 1; i >= 0; i--) {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() - i);
     const key = toLocalDateKey(d);
-    days.push({
-      label: d.toLocaleDateString('zh-CN', { weekday: 'short' }).replace('周', ''),
+    items.push({
+      label: days === 30 ? `${d.getMonth() + 1}/${d.getDate()}` : d.toLocaleDateString('zh-CN', { weekday: 'short' }).replace('周', ''),
       total: byDay[key] || 0,
-      isToday: key === todayKey
+      isToday: key === todayKey,
+      showLabel: days === 30 ? (i % 5 === 0 || i === 0) : true
     });
   }
-  return days;
+  return items;
 }
 
 function sortedEntries() {

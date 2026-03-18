@@ -308,6 +308,29 @@ h2 { font-size: 3.35rem; line-height: 1; }
 .over-goal-hint {
   color: #bf5371;
 }
+
+.chart-head {
+  margin-bottom: 10px;
+}
+.chart-toggle {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  border: 1px dashed rgba(126,220,154,.28);
+}
+.chart-summary {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: .96rem;
+}
+.active-pill {
+  background: linear-gradient(135deg, rgba(126,220,154,.26), rgba(199,240,212,.36));
+  color: var(--pink-strong);
+}
+
 .chart-wrap {
   width: 100%;
   min-height: 190px;

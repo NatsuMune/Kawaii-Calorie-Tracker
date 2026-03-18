@@ -63,10 +63,15 @@
           </div>
 
           <section class="card chart-card layered-card">
-            <div class="section-head sticker-head">
-              <h3>每周图表</h3>
+            <div class="section-head sticker-head chart-head">
+              <h3 id="chartTitle">每周图表</h3>
               <span class="sparkle">✦</span>
             </div>
+            <div class="chart-toggle" role="tablist" aria-label="图表时间范围">
+              <button id="chartRange7Btn" type="button" class="mini-ghost-btn active-pill" aria-pressed="true">近 7 天</button>
+              <button id="chartRange30Btn" type="button" class="mini-ghost-btn" aria-pressed="false">近 30 天</button>
+            </div>
+            <div class="chart-summary" id="chartSummary">最近 7 天平均摄入 0 kcal</div>
             <div class="chart-wrap">
               <canvas id="weeklyChart" width="320" height="180"></canvas>
             </div>
