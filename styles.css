@@ -357,13 +357,20 @@ h2 { font-size: 3.35rem; line-height: 1; }
   min-width: 0;
 }
 .history-search-wrap,
-.history-date-wrap {
+.history-date-wrap,
+.history-meal-wrap {
   display: grid;
   gap: 8px;
   min-width: 0;
 }
 .history-search-wrap {
   margin-bottom: 0;
+}
+.history-search-wrap .subtle,
+.history-date-wrap .subtle,
+.history-meal-wrap .subtle {
+  font-size: .92rem;
+  line-height: 1.2;
 }
 .history-filter-actions {
   display: flex;
@@ -679,6 +686,21 @@ h2 { font-size: 3.35rem; line-height: 1; }
 .mini-danger-btn:active {
   transform: scale(.96);
 }
+@media (max-width: 430px) {
+  .history-filters-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-filter-wide {
+    grid-column: auto;
+  }
+
+  .history-date-wrap .subtle,
+  .history-meal-wrap .subtle {
+    margin-bottom: 2px;
+  }
+}
+
 @media (max-width: 380px) {
   .setting-row {
     grid-template-columns: 1fr;
