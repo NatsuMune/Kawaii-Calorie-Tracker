@@ -56,6 +56,14 @@ input, textarea, select {
   -webkit-user-select: text;
   user-select: text;
 }
+input[type="date"],
+input[type="datetime-local"],
+input[type="number"],
+input[type="search"],
+select {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 500;
+}
 input,
 select {
   width: 100%;
@@ -71,6 +79,15 @@ select {
 input[type="date"],
 input[type="datetime-local"] {
   max-width: 100%;
+  min-height: 58px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="datetime-local"]::-webkit-date-and-time-value,
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
 }
 select {
   appearance: none;
