@@ -11,7 +11,7 @@ A cute local-first PWA calorie intake tracker optimized for phone-sized screens,
   - fill the result back into the intake form before saving
 - Built-in AI providers only:
   - OpenRouter
-  - z.ai
+  - z.ai Coding Plan
 - Provider, model, and API key are configured in the front-end UI and stored locally in the browser on that device
 - No local AI proxy: the Node server only serves static files for the PWA
 - Tailscale serve is fine for remote page access, but it is not part of the AI request path
@@ -33,7 +33,7 @@ The local server now does one job only:
 
 ## Using AI estimate
 1. Open **设置**
-2. Pick **OpenRouter** or **z.ai**
+2. Pick **OpenRouter** or **z.ai Coding Plan**
 3. Paste your API key into the browser UI
 4. Optionally adjust the model
 5. Open **记录**
@@ -44,13 +44,14 @@ The local server now does one job only:
 ## Important behavior / limitations
 - This iteration is **text-only**. Image upload / vision estimation was intentionally removed.
 - API keys stay in the current browser's local storage / IndexedDB fallback. They are not sent back to the local Node service for proxying.
-- Direct browser access means provider behavior can vary by account, region, model, and CORS policy.
+- Direct browser access means provider behavior can vary by account, region, model, plan entitlement, and CORS policy.
 - If a provider rejects browser-side cross-origin requests, the app surfaces that failure directly instead of silently rerouting through a local proxy.
 
 ## CORS notes checked during implementation
 - `https://openrouter.ai/api/v1/chat/completions` responded to an `OPTIONS` preflight with browser-oriented CORS headers, including `access-control-allow-origin: *`.
-- `https://api.z.ai/api/paas/v4/chat/completions` also responded to an `OPTIONS` preflight with browser-oriented CORS headers, including `access-control-allow-origin: *`.
-- That means both providers appear reachable from a browser in principle at the HTTP/CORS layer, though an actual request can still fail later because of API key validity, account permissions, or model support.
+- z.ai's docs say GLM Coding Plan must use the dedicated Coding endpoint base URL: `https://api.z.ai/api/coding/paas/v4` instead of the general `https://api.z.ai/api/paas/v4`.
+- `https://api.z.ai/api/coding/paas/v4/chat/completions` also responded to an `OPTIONS` preflight with browser-oriented CORS headers during implementation, including `access-control-allow-origin: http://127.0.0.1:4174` for the tested origin.
+- That means both providers appear reachable from a browser in principle at the HTTP/CORS layer, though an actual request can still fail later because of API key validity, Coding Plan entitlement, account permissions, or model support.
 
 ## Test
 ```bash

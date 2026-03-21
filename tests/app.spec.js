@@ -244,17 +244,63 @@ test('ai estimate fills the intake form through a direct browser provider call',
   await expect(page.locator('#aiEstimateResult')).toContainText('包含面条、牛肉与汤底');
 });
 
-test('ai settings stay in browser storage and mention direct browser limitations', async ({ page }) => {
+test('z.ai Coding Plan uses its dedicated browser-direct endpoint', async ({ page }) => {
+  await page.route('https://api.z.ai/api/coding/paas/v4/chat/completions', async (route) => {
+    const request = route.request();
+    const payload = JSON.parse(request.postData() || '{}');
+    expect(request.headers().authorization).toBe('Bearer coding-plan-key');
+    expect(payload.model).toBe('glm-4.5');
+    expect(payload.messages[0].content[0].text).toContain('鸡腿饭');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                foodName: '鸡腿饭',
+                estimatedCalories: 720,
+                confidence: 'medium',
+                reasoning: '按一份常见套餐估算',
+                portionNote: '含米饭、鸡腿和配菜',
+                mealType: 'lunch'
+              })
+            }
+          }
+        ]
+      })
+    });
+  });
+
   await page.getByRole('button', { name: '设置' }).click();
-  await page.locator('#aiProviderSelect').selectOption('z-ai');
+  await page.locator('#aiProviderSelect').selectOption('z-ai-coding');
+  await page.locator('#aiModelInput').fill('glm-4.5');
+  await page.locator('#aiApiKeyInput').fill('coding-plan-key');
+  await page.locator('#aiApiKeyInput').dispatchEvent('change');
+  await page.locator('.nav-btn[data-target="log"]').click();
+
+  await page.locator('#aiEstimateText').fill('一份鸡腿饭，带一点青菜');
+  await page.getByRole('button', { name: 'AI 估算并填入' }).click();
+
+  await expect(page.locator('#intakeText')).toHaveValue('鸡腿饭');
+  await expect(page.locator('#intakeCalories')).toHaveValue('720');
+  await expect(page.locator('#intakeMealType')).toHaveValue('lunch');
+  await expect(page.locator('#aiEstimateStatus')).toContainText('z.ai Coding Plan · glm-4.5');
+  await expect(page.locator('#aiEstimateResult')).toContainText('含米饭、鸡腿和配菜');
+});
+
+test('ai settings stay in browser storage and explain the z.ai Coding Plan direct path', async ({ page }) => {
+  await page.getByRole('button', { name: '设置' }).click();
+  await page.locator('#aiProviderSelect').selectOption('z-ai-coding');
   await page.locator('#aiApiKeyInput').fill('z-key-123');
   await page.locator('#aiApiKeyInput').dispatchEvent('change');
   await page.reload();
   await page.getByRole('button', { name: '设置' }).click();
 
-  await expect(page.locator('#aiProviderSelect')).toHaveValue('z-ai');
+  await expect(page.locator('#aiProviderSelect')).toHaveValue('z-ai-coding');
   await expect(page.locator('#aiApiKeyInput')).toHaveValue('z-key-123');
   await expect(page.locator('#aiProviderStatus')).toContainText('不会经过本地服务代理');
-  await expect(page.locator('#aiDirectHint')).toContainText('跨域请求');
-  await expect(page.locator('#aiConfigSource')).toContainText('浏览器本地保存 API Key');
+  await expect(page.locator('#aiDirectHint')).toContainText('Coding API');
+  await expect(page.locator('#aiConfigSource')).toContainText('z.ai Coding Plan');
 });

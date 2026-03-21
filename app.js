@@ -10,11 +10,11 @@ const PROVIDER_CONFIG = Object.freeze({
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     apiKeyPlaceholder: 'sk-or-v1-...'
   },
-  'z-ai': {
-    label: 'z.ai',
-    defaultModel: 'glm-4.5-air',
-    endpoint: 'https://api.z.ai/api/paas/v4/chat/completions',
-    apiKeyPlaceholder: 'z.ai API key'
+  'z-ai-coding': {
+    label: 'z.ai Coding Plan',
+    defaultModel: 'glm-4.5',
+    endpoint: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
+    apiKeyPlaceholder: 'z.ai Coding Plan API key'
   }
 });
 const DEFAULT_AI_SETTINGS = Object.freeze({
@@ -807,8 +807,8 @@ function renderSettings() {
       : `${info.label}：还没填写 API Key，暂时不能估算。`;
   }
   if (els.aiDirectHint) {
-    els.aiDirectHint.textContent = provider === 'z-ai'
-      ? 'z.ai 会由浏览器直接请求。如果失败，常见原因是密钥无效、模型不支持，或提供商临时拦截浏览器跨域请求。'
+    els.aiDirectHint.textContent = provider === 'z-ai-coding'
+      ? 'z.ai Coding Plan 会走它自己的 Coding API 直连地址。如果失败，常见原因是密钥不属于 Coding Plan、模型不支持，或提供商临时拦截浏览器跨域请求。'
       : 'OpenRouter 会由浏览器直接请求。远程访问页面时，API Key 仍只保存在当前浏览器，不会发回本机服务。';
   }
 }
@@ -1089,16 +1089,15 @@ function sanitizeFavorites(favorites) {
 
 function sanitizeAiSettings(ai) {
   const provider = normalizeProvider(ai?.provider);
-  const legacyModel = provider === 'z-ai' ? 'glm-4.5-air' : PROVIDER_CONFIG[provider].defaultModel;
   return {
     provider,
-    model: sanitizeModel(ai?.model || legacyModel),
+    model: sanitizeModel(ai?.model || PROVIDER_CONFIG[provider].defaultModel),
     apiKey: sanitizeApiKey(ai?.apiKey || '')
   };
 }
 
 function normalizeProvider(value) {
-  return value === 'z-ai' ? 'z-ai' : 'openrouter';
+  return value === 'z-ai-coding' || value === 'z-ai' ? 'z-ai-coding' : 'openrouter';
 }
 
 function sanitizeModel(value) {
