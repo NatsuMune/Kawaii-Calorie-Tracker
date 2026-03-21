@@ -352,15 +352,19 @@ function bindSettings() {
     pulse();
   });
 
-  els.aiProviderSelect?.addEventListener('change', () => {
-    state.settings.ai.provider = normalizeProvider(els.aiProviderSelect.value);
-    const providerInfo = getCurrentProviderInfo();
-    if (!state.settings.ai.model || Object.values(PROVIDER_CONFIG).some((item) => item.defaultModel === state.settings.ai.model)) {
-      state.settings.ai.model = providerInfo.defaultModel;
+  const handleAiProviderSelection = () => {
+    const selectedProvider = normalizeProvider(els.aiProviderSelect?.value);
+    const previousProvider = normalizeProvider(state.settings.ai.provider);
+    state.settings.ai.provider = selectedProvider;
+    if (!state.settings.ai.model || state.settings.ai.model === PROVIDER_CONFIG[previousProvider].defaultModel) {
+      state.settings.ai.model = PROVIDER_CONFIG[selectedProvider].defaultModel;
     }
     saveState();
     renderSettings();
-  });
+  };
+
+  els.aiProviderSelect?.addEventListener('input', handleAiProviderSelection);
+  els.aiProviderSelect?.addEventListener('change', handleAiProviderSelection);
 
   els.aiModelInput?.addEventListener('change', () => {
     state.settings.ai.model = sanitizeModel(els.aiModelInput.value);

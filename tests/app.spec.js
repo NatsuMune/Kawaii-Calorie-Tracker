@@ -245,7 +245,7 @@ test('ai estimate fills the intake form through a direct browser provider call',
   await expect(page.locator('#aiEstimateResult')).toContainText('包含面条、牛肉与汤底');
 });
 
-test('z.ai Coding Plan uses its dedicated browser-direct endpoint', async ({ page }) => {
+test('z.ai Coding Plan can be selected in settings and uses its dedicated browser-direct endpoint', async ({ page }) => {
   await page.route('https://api.z.ai/api/coding/paas/v4/chat/completions', async (route) => {
     const request = route.request();
     const payload = JSON.parse(request.postData() || '{}');
@@ -275,11 +275,13 @@ test('z.ai Coding Plan uses its dedicated browser-direct endpoint', async ({ pag
   });
 
   await page.getByRole('button', { name: '设置' }).click();
-  await page.evaluate(() => {
-    document.querySelector('#aiProviderSelect').value = 'z-ai-coding';
-    document.querySelector('#aiModelInput').value = 'glm-4.5';
-    document.querySelector('#aiApiKeyInput').value = 'coding-plan-key';
-  });
+  await page.locator('#aiProviderSelect').selectOption('z-ai-coding');
+  await expect(page.locator('#aiProviderSelect')).toHaveValue('z-ai-coding');
+  await expect(page.locator('#aiModelInput')).toHaveValue('glm-4.5');
+  await expect(page.locator('#aiConfigSource')).toContainText('z.ai Coding Plan · glm-4.5');
+  await expect(page.locator('#aiDirectHint')).toContainText('Coding API');
+  await page.locator('#aiApiKeyInput').fill('coding-plan-key');
+  await page.locator('#aiApiKeyInput').dispatchEvent('change');
   await page.locator('.nav-btn[data-target="log"]').click();
 
   await page.locator('#aiEstimateText').fill('一份鸡腿饭，带一点青菜');
