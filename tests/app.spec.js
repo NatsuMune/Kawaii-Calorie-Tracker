@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     localStorage.clear();
     indexedDB.deleteDatabase('kawaii-calorie-tracker-db');
   });
@@ -198,34 +198,40 @@ test('chart can switch between 7-day and 30-day modes', async ({ page }) => {
   await expect(page.locator('#chartRange7Btn')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('ai estimate fills the intake form through the local proxy', async ({ page }) => {
-  await page.route('**/api/ai/estimate', async (route) => {
+test('ai estimate fills the intake form through a direct browser provider call', async ({ page }) => {
+  await page.route('https://openrouter.ai/api/v1/chat/completions', async (route) => {
     const request = route.request();
     const payload = JSON.parse(request.postData() || '{}');
-    expect(payload.provider).toBe('z-ai');
-    expect(payload.model).toBe('glm-4.5v');
-    expect(payload.text).toContain('牛肉面');
+    expect(request.headers().authorization).toBe('Bearer browser-key');
+    expect(payload.model).toBe('openai/gpt-4o-mini');
+    expect(payload.messages[0].content[0].text).toContain('牛肉面');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        ok: true,
-        result: {
-          foodName: '牛肉面',
-          estimatedCalories: 640,
-          confidence: 'medium',
-          reasoning: '按一大碗汤面估算',
-          portionNote: '包含面条、牛肉与汤底',
-          provider: 'z-ai'
-        }
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                foodName: '牛肉面',
+                estimatedCalories: 640,
+                confidence: 'medium',
+                reasoning: '按一大碗汤面估算',
+                portionNote: '包含面条、牛肉与汤底',
+                mealType: 'lunch'
+              })
+            }
+          }
+        ]
       })
     });
   });
 
   await page.getByRole('button', { name: '设置' }).click();
-  await page.locator('#aiProviderSelect').selectOption('z-ai');
-  await page.locator('#aiModelInput').fill('glm-4.5v');
-  await page.locator('#aiProxyUrlInput').fill('/api/ai/estimate');
+  await page.locator('#aiProviderSelect').selectOption('openrouter');
+  await page.locator('#aiModelInput').fill('openai/gpt-4o-mini');
+  await page.locator('#aiApiKeyInput').fill('browser-key');
+  await page.locator('#aiApiKeyInput').dispatchEvent('change');
   await page.locator('.nav-btn[data-target="log"]').click();
 
   await page.locator('#aiEstimateText').fill('一碗牛肉面，加半颗卤蛋');
@@ -233,6 +239,22 @@ test('ai estimate fills the intake form through the local proxy', async ({ page 
 
   await expect(page.locator('#intakeText')).toHaveValue('牛肉面');
   await expect(page.locator('#intakeCalories')).toHaveValue('640');
-  await expect(page.locator('#aiEstimateStatus')).toContainText('z.ai · glm-4.5v');
+  await expect(page.locator('#intakeMealType')).toHaveValue('lunch');
+  await expect(page.locator('#aiEstimateStatus')).toContainText('OpenRouter · openai/gpt-4o-mini');
   await expect(page.locator('#aiEstimateResult')).toContainText('包含面条、牛肉与汤底');
+});
+
+test('ai settings stay in browser storage and mention direct browser limitations', async ({ page }) => {
+  await page.getByRole('button', { name: '设置' }).click();
+  await page.locator('#aiProviderSelect').selectOption('z-ai');
+  await page.locator('#aiApiKeyInput').fill('z-key-123');
+  await page.locator('#aiApiKeyInput').dispatchEvent('change');
+  await page.reload();
+  await page.getByRole('button', { name: '设置' }).click();
+
+  await expect(page.locator('#aiProviderSelect')).toHaveValue('z-ai');
+  await expect(page.locator('#aiApiKeyInput')).toHaveValue('z-key-123');
+  await expect(page.locator('#aiProviderStatus')).toContainText('不会经过本地服务代理');
+  await expect(page.locator('#aiDirectHint')).toContainText('跨域请求');
+  await expect(page.locator('#aiConfigSource')).toContainText('浏览器本地保存 API Key');
 });

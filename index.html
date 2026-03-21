@@ -140,7 +140,7 @@
               <div class="section-head quick-add-head">
                 <div>
                   <h4 id="aiEstimateTitle">AI 热量估算</h4>
-                  <p class="subtle">写描述，选填照片，先估一下再保存。</p>
+                  <p class="subtle">只吃文字描述流。估算结果会回填到下面的表单。</p>
                 </div>
                 <span class="sparkle">🤖</span>
               </div>
@@ -148,13 +148,8 @@
                 <span>描述食物</span>
                 <textarea id="aiEstimateText" rows="3" maxlength="300" placeholder="例如：一碗牛肉面，加半颗卤蛋和一杯无糖豆浆"></textarea>
               </label>
-              <label class="photo-upload-field">
-                <span>食物照片（可选）</span>
-                <input id="aiPhotoInput" type="file" accept="image/*" />
-                <small id="aiPhotoName" class="subtle">可选：拍照或上传食物图片</small>
-              </label>
               <button id="aiEstimateBtn" type="button" class="primary-btn">AI 估算并填入</button>
-              <p id="aiEstimateStatus" class="subtle">当前会走本地代理，不把密钥塞进网页里。</p>
+              <p id="aiEstimateStatus" class="subtle">请求会直接从当前浏览器发到 AI 提供商，不走本地代理。</p>
               <div id="aiEstimateResult" class="ai-estimate-result subtle"></div>
             </section>
 
@@ -190,7 +185,7 @@
               </label>
               <button id="submitEntryBtn" type="submit" class="primary-btn">保存记录</button>
             </form>
-            <p id="saveHint" class="save-hint">所有数据只保存在这台设备的本地浏览器里。</p>
+            <p id="saveHint" class="save-hint">所有记录和 AI 设置都只保存在这台设备当前浏览器里。</p>
           </section>
         </section>
 
@@ -220,13 +215,14 @@
                 <input id="aiModelInput" type="text" maxlength="120" placeholder="例如：openai/gpt-4o-mini" />
               </label>
               <label>
-                <span>代理 URL</span>
-                <input id="aiProxyUrlInput" type="text" maxlength="200" placeholder="/api/ai/estimate" />
+                <span>API Key</span>
+                <input id="aiApiKeyInput" type="password" maxlength="300" autocomplete="off" placeholder="粘贴到当前浏览器本地保存" />
               </label>
               <div class="settings-note-card">
                 <strong>当前来源</strong>
-                <p id="aiConfigSource" class="subtle">OpenRouter · openai/gpt-4o-mini · /api/ai/estimate</p>
-                <p id="aiProviderStatus" class="subtle">正在检测本地代理状态…</p>
+                <p id="aiConfigSource" class="subtle">OpenRouter · openai/gpt-4o-mini · 浏览器本地保存 API Key</p>
+                <p id="aiProviderStatus" class="subtle">正在读取本地设置…</p>
+                <p id="aiDirectHint" class="subtle">如果提供商拦截浏览器跨域请求（CORS），页面会直接提示失败；不会偷偷改走本地代理。</p>
               </div>
             </div>
             <div class="backup-actions">

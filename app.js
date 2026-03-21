@@ -1,12 +1,26 @@
-const STORAGE_KEY = 'kawaii-calorie-tracker-v2';
-const LEGACY_STORAGE_KEY = 'kawaii-calorie-tracker-v1';
+const STORAGE_KEY = 'kawaii-calorie-tracker-v3';
+const LEGACY_STORAGE_KEY = 'kawaii-calorie-tracker-v2';
 const DB_NAME = 'kawaii-calorie-tracker-db';
 const DB_STORE = 'state';
 const DB_RECORD_KEY = 'primary';
+const PROVIDER_CONFIG = Object.freeze({
+  openrouter: {
+    label: 'OpenRouter',
+    defaultModel: 'openai/gpt-4o-mini',
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    apiKeyPlaceholder: 'sk-or-v1-...'
+  },
+  'z-ai': {
+    label: 'z.ai',
+    defaultModel: 'glm-4.5-air',
+    endpoint: 'https://api.z.ai/api/paas/v4/chat/completions',
+    apiKeyPlaceholder: 'z.ai API key'
+  }
+});
 const DEFAULT_AI_SETTINGS = Object.freeze({
   provider: 'openrouter',
-  model: 'openai/gpt-4o-mini',
-  proxyUrl: '/api/ai/estimate'
+  model: PROVIDER_CONFIG.openrouter.defaultModel,
+  apiKey: ''
 });
 const DEFAULT_STATE = Object.freeze({ entries: [], settings: { goal: 2000, favorites: [], ai: DEFAULT_AI_SETTINGS } });
 const QUICK_ADD_TEMPLATES = Object.freeze([
@@ -27,14 +41,6 @@ let historyDateFilter = '';
 let historyMealFilter = '';
 let chartRangeDays = 7;
 let storageWarningShown = false;
-let aiConfig = {
-  providers: {
-    openrouter: { available: false, defaultModel: DEFAULT_AI_SETTINGS.model },
-    'z-ai': { available: false, defaultModel: 'glm-4.5v' }
-  },
-  proxyUrl: DEFAULT_AI_SETTINGS.proxyUrl
-};
-let aiPhotoDataUrl = '';
 let estimatingInFlight = false;
 
 const MEAL_TYPE_LABELS = {
@@ -71,16 +77,15 @@ const els = {
   editingBanner: document.getElementById('editingBanner'),
   cancelEditBtn: document.getElementById('cancelEditBtn'),
   aiEstimateText: document.getElementById('aiEstimateText'),
-  aiPhotoInput: document.getElementById('aiPhotoInput'),
-  aiPhotoName: document.getElementById('aiPhotoName'),
   aiEstimateBtn: document.getElementById('aiEstimateBtn'),
   aiEstimateStatus: document.getElementById('aiEstimateStatus'),
   aiEstimateResult: document.getElementById('aiEstimateResult'),
   aiProviderSelect: document.getElementById('aiProviderSelect'),
   aiModelInput: document.getElementById('aiModelInput'),
-  aiProxyUrlInput: document.getElementById('aiProxyUrlInput'),
+  aiApiKeyInput: document.getElementById('aiApiKeyInput'),
   aiConfigSource: document.getElementById('aiConfigSource'),
   aiProviderStatus: document.getElementById('aiProviderStatus'),
+  aiDirectHint: document.getElementById('aiDirectHint'),
   goalInput: document.getElementById('goalInput'),
   clearDataBtn: document.getElementById('clearDataBtn'),
   exportDataBtn: document.getElementById('exportDataBtn'),
@@ -93,9 +98,7 @@ const els = {
   chartSummary: document.getElementById('chartSummary'),
   chartRange7Btn: document.getElementById('chartRange7Btn'),
   chartRange30Btn: document.getElementById('chartRange30Btn'),
-  weeklyChart: document.getElementById('weeklyChart'),
-  goalRingProgress: document.getElementById('goalRingProgress'),
-  goalPercent: document.getElementById('goalPercent')
+  weeklyChart: document.getElementById('weeklyChart')
 };
 
 init();
@@ -110,7 +113,6 @@ async function init() {
   bindPwa();
   bindAi();
   await hydrateState();
-  await hydrateAiConfig();
   renderAll();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(() => {
@@ -147,7 +149,7 @@ async function hydrateState() {
 
 function loadStateFromLocalStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || localStorage.getItem('kawaii-calorie-tracker-v1');
     if (!raw) return null;
     return sanitizeState(JSON.parse(raw));
   } catch (err) {
@@ -349,9 +351,9 @@ function bindSettings() {
 
   els.aiProviderSelect?.addEventListener('change', () => {
     state.settings.ai.provider = normalizeProvider(els.aiProviderSelect.value);
-    const providerInfo = aiConfig.providers[state.settings.ai.provider];
-    if (!state.settings.ai.model || state.settings.ai.model === DEFAULT_AI_SETTINGS.model || state.settings.ai.model === aiConfig.providers.openrouter.defaultModel || state.settings.ai.model === aiConfig.providers['z-ai'].defaultModel) {
-      state.settings.ai.model = providerInfo?.defaultModel || DEFAULT_AI_SETTINGS.model;
+    const providerInfo = getCurrentProviderInfo();
+    if (!state.settings.ai.model || Object.values(PROVIDER_CONFIG).some((item) => item.defaultModel === state.settings.ai.model)) {
+      state.settings.ai.model = providerInfo.defaultModel;
     }
     saveState();
     renderSettings();
@@ -363,8 +365,8 @@ function bindSettings() {
     renderSettings();
   });
 
-  els.aiProxyUrlInput?.addEventListener('change', () => {
-    state.settings.ai.proxyUrl = sanitizeProxyUrl(els.aiProxyUrlInput.value);
+  els.aiApiKeyInput?.addEventListener('change', () => {
+    state.settings.ai.apiKey = sanitizeApiKey(els.aiApiKeyInput.value);
     saveState();
     renderSettings();
   });
@@ -530,85 +532,143 @@ function renderEditorState() {
 }
 
 function bindAi() {
-  els.aiPhotoInput?.addEventListener('change', async (event) => {
-    const file = event.target.files?.[0];
-    aiPhotoDataUrl = file ? await readFileAsDataUrl(file) : '';
-    if (els.aiPhotoName) els.aiPhotoName.textContent = file ? `已选照片：${file.name}` : '可选：拍照或上传食物图片';
-  });
-
   els.aiEstimateBtn?.addEventListener('click', estimateCaloriesWithAi);
-}
-
-async function hydrateAiConfig() {
-  try {
-    const response = await fetch('/api/ai/config', { cache: 'no-store' });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload?.error || 'AI 配置获取失败');
-    aiConfig = payload;
-    if (!state.settings.ai.proxyUrl || state.settings.ai.proxyUrl === DEFAULT_AI_SETTINGS.proxyUrl) {
-      state.settings.ai.proxyUrl = sanitizeProxyUrl(payload.proxyUrl || DEFAULT_AI_SETTINGS.proxyUrl);
-    }
-    const provider = normalizeProvider(state.settings.ai.provider);
-    const providerInfo = aiConfig.providers?.[provider];
-    if (!state.settings.ai.model) {
-      state.settings.ai.model = providerInfo?.defaultModel || DEFAULT_AI_SETTINGS.model;
-    }
-    saveState();
-  } catch (error) {
-    console.error(error);
-  }
 }
 
 async function estimateCaloriesWithAi() {
   if (estimatingInFlight) return;
   const text = (els.aiEstimateText?.value || '').trim();
-  if (!text && !aiPhotoDataUrl) {
-    toast('先写点描述，或者加一张照片吧');
+  if (!text) {
+    toast('先写点文字描述吧');
+    return;
+  }
+
+  const apiKey = sanitizeApiKey(state.settings.ai.apiKey);
+  if (!apiKey) {
+    switchView('settings');
+    toast('先在设置里填入 API Key');
     return;
   }
 
   estimatingInFlight = true;
   if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = true;
-  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = 'AI 正在估算中…';
+  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `正在直接请求 ${getProviderLabel(state.settings.ai.provider)}…`;
 
   try {
-    const response = await fetch(state.settings.ai.proxyUrl || '/api/ai/estimate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        provider: state.settings.ai.provider,
-        model: state.settings.ai.model,
-        text,
-        photoDataUrl: aiPhotoDataUrl
-      })
+    const result = await callAiProvider({
+      provider: state.settings.ai.provider,
+      model: state.settings.ai.model,
+      apiKey,
+      text
     });
-    const payload = await response.json();
-    if (!response.ok || !payload.ok) throw new Error(payload?.error || 'AI 估算失败');
-    applyAiEstimate(payload.result);
+    applyAiEstimate(result);
   } catch (error) {
     console.error(error);
-    if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = error.message || 'AI 估算失败';
-    toast(error.message || 'AI 估算失败');
+    const message = formatAiError(error, state.settings.ai.provider);
+    if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = message;
+    toast(message);
   } finally {
     estimatingInFlight = false;
     if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = false;
   }
 }
 
+async function callAiProvider({ provider, model, apiKey, text }) {
+  const normalizedProvider = normalizeProvider(provider);
+  const endpoint = PROVIDER_CONFIG[normalizedProvider].endpoint;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: buildProviderHeaders(normalizedProvider, apiKey),
+    body: JSON.stringify(buildChatCompletionPayload({ model, text }))
+  });
+  const payload = await response.json().catch(() => ({}));
+  return normalizeProviderResponse(payload, response, normalizedProvider);
+}
+
+function buildProviderHeaders(provider, apiKey) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`
+  };
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = window.location.origin;
+    headers['X-Title'] = 'kawaii-calorie-tracker';
+  }
+  return headers;
+}
+
+function buildChatCompletionPayload({ model, text }) {
+  return {
+    model: sanitizeModel(model) || getCurrentProviderInfo().defaultModel,
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: buildPrompt(text)
+          }
+        ]
+      }
+    ]
+  };
+}
+
+function buildPrompt(text) {
+  return [
+    '你是一个食物热量估算助手。',
+    '只根据用户提供的文字描述做稳健估算，不要假装看到了图片。',
+    '只返回 JSON，对象字段固定为：foodName, estimatedCalories, confidence, reasoning, portionNote, mealType。',
+    'estimatedCalories 必须是整数。confidence 只能是 low、medium、high。mealType 只能是 breakfast、lunch、dinner、snack、other。',
+    `用户输入：${text}`
+  ].join('\n');
+}
+
+function normalizeProviderResponse(payload, response, provider) {
+  if (!response.ok) {
+    const message = payload?.error?.message || payload?.message || `请求 ${provider} 失败 (${response.status})`;
+    throw new Error(message);
+  }
+  const rawContent = payload?.choices?.[0]?.message?.content;
+  const text = Array.isArray(rawContent)
+    ? rawContent.map((item) => item?.text || item?.content || '').join('')
+    : String(rawContent || '').trim();
+  const parsed = JSON.parse(text);
+  return {
+    foodName: String(parsed.foodName || '未命名食物').trim(),
+    estimatedCalories: Math.max(0, Math.round(Number(parsed.estimatedCalories) || 0)),
+    confidence: ['low', 'medium', 'high'].includes(parsed.confidence) ? parsed.confidence : 'medium',
+    reasoning: String(parsed.reasoning || '').trim(),
+    portionNote: String(parsed.portionNote || '').trim(),
+    mealType: sanitizeMealType(parsed.mealType),
+    provider
+  };
+}
+
+function formatAiError(error, provider) {
+  const message = String(error?.message || 'AI 估算失败');
+  if (/Failed to fetch|Load failed|NetworkError/i.test(message)) {
+    return `${getProviderLabel(provider)} 直连失败：可能是网络问题，或这个提供商当前不允许浏览器跨域请求（CORS）。`;
+  }
+  return message;
+}
+
 function applyAiEstimate(result) {
-  if (els.intakeText && !els.intakeText.value.trim()) els.intakeText.value = result.foodName || (els.aiEstimateText?.value || '').trim();
+  if (els.intakeText) els.intakeText.value = result.foodName || (els.aiEstimateText?.value || '').trim();
   if (els.intakeCalories) els.intakeCalories.value = result.estimatedCalories || '';
-  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `已从 ${getProviderLabel(state.settings.ai.provider)} · ${state.settings.ai.model} 填入估算结果`;
+  if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(result.mealType);
+  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `已从 ${getProviderLabel(state.settings.ai.provider)} · ${state.settings.ai.model} 直接填入估算结果`;
   if (els.aiEstimateResult) {
     els.aiEstimateResult.innerHTML = `
       <strong>${escapeHtml(result.foodName || '食物')}</strong>
-      <p>${escapeHtml(`${result.estimatedCalories} kcal · 置信度 ${getConfidenceLabel(result.confidence)}`)}</p>
+      <p>${escapeHtml(`${result.estimatedCalories} kcal · ${getMealTypeLabel(result.mealType)} · 置信度 ${getConfidenceLabel(result.confidence)}`)}</p>
       <p class="subtle">${escapeHtml(result.portionNote || result.reasoning || '可继续手动微调后保存。')}</p>
     `;
   }
   toast('AI 估算已填入 ✨');
 }
-
 
 function bindChartControls() {
   els.chartRange7Btn?.addEventListener('click', () => {
@@ -684,11 +744,12 @@ function renderStats() {
 }
 
 function updateGoalRing(percent) {
-  if (!els.goalRingProgress) return;
+  const ring = document.getElementById('goalRingProgress');
+  if (!ring) return;
   const radius = 46;
   const circumference = 2 * Math.PI * radius;
-  els.goalRingProgress.style.strokeDasharray = `${circumference}`;
-  els.goalRingProgress.style.strokeDashoffset = `${circumference * (1 - percent / 100)}`;
+  ring.style.strokeDasharray = `${circumference}`;
+  ring.style.strokeDashoffset = `${circumference * (1 - percent / 100)}`;
 }
 
 function renderHistory() {
@@ -727,18 +788,28 @@ function renderHistory() {
 }
 
 function renderSettings() {
+  const provider = normalizeProvider(state.settings.ai.provider);
+  const info = PROVIDER_CONFIG[provider];
   if (els.goalInput) els.goalInput.value = state.settings.goal;
-  if (els.aiProviderSelect) els.aiProviderSelect.value = normalizeProvider(state.settings.ai.provider);
+  if (els.aiProviderSelect) els.aiProviderSelect.value = provider;
   if (els.aiModelInput) els.aiModelInput.value = state.settings.ai.model || '';
-  if (els.aiProxyUrlInput) els.aiProxyUrlInput.value = state.settings.ai.proxyUrl || '';
+  if (els.aiModelInput) els.aiModelInput.placeholder = info.defaultModel;
+  if (els.aiApiKeyInput) {
+    els.aiApiKeyInput.value = state.settings.ai.apiKey || '';
+    els.aiApiKeyInput.placeholder = info.apiKeyPlaceholder;
+  }
   if (els.aiConfigSource) {
-    els.aiConfigSource.textContent = `${getProviderLabel(state.settings.ai.provider)} · ${state.settings.ai.model} · ${state.settings.ai.proxyUrl}`;
+    els.aiConfigSource.textContent = `${info.label} · ${state.settings.ai.model || info.defaultModel} · 浏览器本地保存 API Key`;
   }
   if (els.aiProviderStatus) {
-    const provider = normalizeProvider(state.settings.ai.provider);
-    const info = aiConfig.providers?.[provider];
-    const availableText = info?.available ? '本机已检测到密钥，可直接估算。' : '本机还没检测到对应密钥。';
-    els.aiProviderStatus.textContent = `${getProviderLabel(provider)}：${availableText}`;
+    els.aiProviderStatus.textContent = state.settings.ai.apiKey
+      ? `${info.label}：已在当前浏览器保存 API Key。请求会从这个页面直接发出，不会经过本地服务代理。`
+      : `${info.label}：还没填写 API Key，暂时不能估算。`;
+  }
+  if (els.aiDirectHint) {
+    els.aiDirectHint.textContent = provider === 'z-ai'
+      ? 'z.ai 会由浏览器直接请求。如果失败，常见原因是密钥无效、模型不支持，或提供商临时拦截浏览器跨域请求。'
+      : 'OpenRouter 会由浏览器直接请求。远程访问页面时，API Key 仍只保存在当前浏览器，不会发回本机服务。';
   }
 }
 
@@ -931,15 +1002,11 @@ async function importBackup(e) {
     const parsed = JSON.parse(raw);
     const incoming = sanitizeState(parsed.data || parsed);
     const summary = buildImportSummary(incoming, file.name);
-    if (!incoming.entries.length && !confirm(`${summary}
-
-这个备份里没有记录，仍然要覆盖当前数据吗？`)) {
+    if (!incoming.entries.length && !confirm(`${summary}\n\n这个备份里没有记录，仍然要覆盖当前数据吗？`)) {
       e.target.value = '';
       return;
     }
-    const ok = confirm(`${summary}
-
-导入备份会覆盖当前这台设备上的数据，确定继续吗？`);
+    const ok = confirm(`${summary}\n\n导入备份会覆盖当前这台设备上的数据，确定继续吗？`);
     if (!ok) {
       e.target.value = '';
       return;
@@ -958,7 +1025,6 @@ async function importBackup(e) {
     e.target.value = '';
   }
 }
-
 
 function matchesHistoryFilters(entry) {
   const matchesQuery = !historyQuery || (() => {
@@ -1023,10 +1089,11 @@ function sanitizeFavorites(favorites) {
 
 function sanitizeAiSettings(ai) {
   const provider = normalizeProvider(ai?.provider);
+  const legacyModel = provider === 'z-ai' ? 'glm-4.5-air' : PROVIDER_CONFIG[provider].defaultModel;
   return {
     provider,
-    model: sanitizeModel(ai?.model || (provider === 'z-ai' ? 'glm-4.5v' : DEFAULT_AI_SETTINGS.model)),
-    proxyUrl: sanitizeProxyUrl(ai?.proxyUrl || DEFAULT_AI_SETTINGS.proxyUrl)
+    model: sanitizeModel(ai?.model || legacyModel),
+    apiKey: sanitizeApiKey(ai?.apiKey || '')
   };
 }
 
@@ -1038,26 +1105,20 @@ function sanitizeModel(value) {
   return String(value || '').trim().slice(0, 120);
 }
 
-function sanitizeProxyUrl(value) {
-  const trimmed = String(value || '').trim();
-  return trimmed || DEFAULT_AI_SETTINGS.proxyUrl;
+function sanitizeApiKey(value) {
+  return String(value || '').trim().slice(0, 300);
+}
+
+function getCurrentProviderInfo() {
+  return PROVIDER_CONFIG[normalizeProvider(state.settings.ai.provider)];
 }
 
 function getProviderLabel(provider) {
-  return provider === 'z-ai' ? 'z.ai' : 'OpenRouter';
+  return PROVIDER_CONFIG[normalizeProvider(provider)].label;
 }
 
 function getConfidenceLabel(confidence) {
   return ({ low: '低', medium: '中', high: '高' })[confidence] || '中';
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error || new Error('图片读取失败'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function toggleFavoriteFromEntry(entryId) {
