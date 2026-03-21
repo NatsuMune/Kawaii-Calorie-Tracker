@@ -2,6 +2,7 @@
   "name": "kawaii-calorie-tracker",
   "private": true,
   "scripts": {
+    "start": "node server.js",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

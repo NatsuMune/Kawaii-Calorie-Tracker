@@ -14,7 +14,7 @@ module.exports = defineConfig({
     },
   ],
   webServer: {
-    command: 'python3 -m http.server 4174 --bind 127.0.0.1',
+    command: 'node server.js',
     port: 4174,
     reuseExistingServer: true,
   },

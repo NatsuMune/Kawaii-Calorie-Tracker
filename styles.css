@@ -65,6 +65,7 @@ select {
   font-weight: 500;
 }
 input,
+textarea,
 select {
   width: 100%;
   min-width: 0;
@@ -103,6 +104,7 @@ select {
   padding-right: 44px;
 }
 input:focus,
+textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--pink-strong);
@@ -442,7 +444,8 @@ h2 { font-size: 3.35rem; line-height: 1; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
 }
 .intake-form,
-.quick-add-card {
+.quick-add-card,
+.settings-stack {
   display: grid;
   gap: 14px;
 }
@@ -452,6 +455,20 @@ h2 { font-size: 3.35rem; line-height: 1; }
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(255,255,255,.88), rgba(243,255,240,.82));
   border: 1px dashed rgba(126,220,154,.35);
+}
+.ai-card {
+  margin-top: 6px;
+}
+.photo-upload-field small {
+  display: block;
+  margin-top: 8px;
+}
+.ai-estimate-result {
+  min-height: 24px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.58);
+  border: 1px dashed rgba(126,220,154,.28);
 }
 .favorite-quick-add-wrap {
   display: grid;
@@ -531,6 +548,15 @@ h2 { font-size: 3.35rem; line-height: 1; }
   transform: scale(.96);
 }
 .save-hint { margin-top: 14px; color: var(--muted); font-size: 1rem; }
+.settings-note-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.7);
+  border: 1px dashed rgba(126,220,154,.35);
+}
+.ai-settings-stack {
+  margin: 4px 0 14px;
+}
 .setting-row {
   grid-template-columns: minmax(0, 1fr) 108px;
   align-items: center;
