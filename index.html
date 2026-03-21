@@ -19,7 +19,7 @@
           <p class="eyebrow">今天也一起努力呀 ✿</p>
           <h1 class="app-title">卡路里大作战</h1>
         </div>
-        <button id="installBtn" class="ghost-btn hidden" aria-label="安装应用">安装</button>
+        <button id="installBtn" type="button" class="ghost-btn hidden" aria-label="安装应用">安装</button>
       </header>
 
       <main id="appMain" class="main-content">
@@ -230,19 +230,19 @@
               <label class="ghost-btn import-btn" for="importDataInput">导入备份</label>
               <input id="importDataInput" type="file" accept="application/json" hidden />
             </div>
-            <button id="clearDataBtn" class="danger-btn">清空全部数据</button>
+            <button id="clearDataBtn" type="button" class="danger-btn">清空全部数据</button>
           </section>
         </section>
       </main>
 
       <nav class="bottom-nav glass" aria-label="底部导航">
-        <button class="nav-btn active" data-target="dashboard">
+        <button type="button" class="nav-btn active" data-target="dashboard">
           <span>🏠</span><small>主页</small>
         </button>
-        <button class="nav-btn" data-target="log">
+        <button type="button" class="nav-btn" data-target="log">
           <span>🍓</span><small>记录</small>
         </button>
-        <button class="nav-btn" data-target="settings">
+        <button type="button" class="nav-btn" data-target="settings">
           <span>⚙️</span><small>设置</small>
         </button>
       </nav>

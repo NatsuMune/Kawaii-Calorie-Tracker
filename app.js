@@ -8,13 +8,15 @@ const PROVIDER_CONFIG = Object.freeze({
     label: 'OpenRouter',
     defaultModel: 'openai/gpt-4o-mini',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    apiKeyPlaceholder: 'sk-or-v1-...'
+    apiKeyPlaceholder: 'sk-or-v1-...',
+    authDocs: 'Authorization: Bearer <OPENROUTER_API_KEY> + HTTP-Referer / X-OpenRouter-Title'
   },
   'z-ai-coding': {
     label: 'z.ai Coding Plan',
     defaultModel: 'glm-4.5',
     endpoint: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
-    apiKeyPlaceholder: 'z.ai Coding Plan API key'
+    apiKeyPlaceholder: 'z.ai Coding Plan API key',
+    authDocs: 'Authorization: Bearer <ZAI_CODING_PLAN_API_KEY>'
   }
 });
 const DEFAULT_AI_SETTINGS = Object.freeze({
@@ -258,7 +260,8 @@ async function saveStateToIndexedDb(snapshot) {
 
 function bindNav() {
   els.navBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
       pulse();
       btn.classList.remove('nav-bounce');
       void btn.offsetWidth;
@@ -543,8 +546,8 @@ async function estimateCaloriesWithAi() {
     return;
   }
 
-  const apiKey = sanitizeApiKey(state.settings.ai.apiKey);
-  if (!apiKey) {
+  const aiSettings = getEffectiveAiSettings();
+  if (!aiSettings.apiKey) {
     switchView('settings');
     toast('先在设置里填入 API Key');
     return;
@@ -552,19 +555,19 @@ async function estimateCaloriesWithAi() {
 
   estimatingInFlight = true;
   if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = true;
-  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `正在直接请求 ${getProviderLabel(state.settings.ai.provider)}…`;
+  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `正在直接请求 ${getProviderLabel(aiSettings.provider)}…`;
 
   try {
     const result = await callAiProvider({
-      provider: state.settings.ai.provider,
-      model: state.settings.ai.model,
-      apiKey,
+      provider: aiSettings.provider,
+      model: aiSettings.model,
+      apiKey: aiSettings.apiKey,
       text
     });
-    applyAiEstimate(result);
+    applyAiEstimate(result, aiSettings);
   } catch (error) {
     console.error(error);
-    const message = formatAiError(error, state.settings.ai.provider);
+    const message = formatAiError(error, aiSettings.provider);
     if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = message;
     toast(message);
   } finally {
@@ -586,14 +589,22 @@ async function callAiProvider({ provider, model, apiKey, text }) {
 }
 
 function buildProviderHeaders(provider, apiKey) {
+  const normalizedProvider = normalizeProvider(provider);
+  const cleanApiKey = sanitizeApiKey(apiKey);
   const headers = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`
+    'Accept': 'application/json'
   };
-  if (provider === 'openrouter') {
-    headers['HTTP-Referer'] = window.location.origin;
-    headers['X-Title'] = 'kawaii-calorie-tracker';
+
+  if (cleanApiKey) {
+    headers.Authorization = `Bearer ${cleanApiKey}`;
   }
+
+  if (normalizedProvider === 'openrouter') {
+    headers['HTTP-Referer'] = window.location.origin;
+    headers['X-OpenRouter-Title'] = 'kawaii-calorie-tracker';
+  }
+
   return headers;
 }
 
@@ -655,11 +666,11 @@ function formatAiError(error, provider) {
   return message;
 }
 
-function applyAiEstimate(result) {
+function applyAiEstimate(result, aiSettings = state.settings.ai) {
   if (els.intakeText) els.intakeText.value = result.foodName || (els.aiEstimateText?.value || '').trim();
   if (els.intakeCalories) els.intakeCalories.value = result.estimatedCalories || '';
   if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(result.mealType);
-  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `已从 ${getProviderLabel(state.settings.ai.provider)} · ${state.settings.ai.model} 直接填入估算结果`;
+  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `已从 ${getProviderLabel(aiSettings.provider)} · ${aiSettings.model} 直接填入估算结果`;
   if (els.aiEstimateResult) {
     els.aiEstimateResult.innerHTML = `
       <strong>${escapeHtml(result.foodName || '食物')}</strong>
@@ -808,8 +819,8 @@ function renderSettings() {
   }
   if (els.aiDirectHint) {
     els.aiDirectHint.textContent = provider === 'z-ai-coding'
-      ? 'z.ai Coding Plan 会走它自己的 Coding API 直连地址。如果失败，常见原因是密钥不属于 Coding Plan、模型不支持，或提供商临时拦截浏览器跨域请求。'
-      : 'OpenRouter 会由浏览器直接请求。远程访问页面时，API Key 仍只保存在当前浏览器，不会发回本机服务。';
+      ? `z.ai Coding Plan 会走它自己的 Coding API 直连地址，并按官方约定发送 ${info.authDocs}。如果失败，常见原因是密钥不属于 Coding Plan、模型不支持，或提供商临时拦截浏览器跨域请求。`
+      : `OpenRouter 会由浏览器直接请求，并按官方约定发送 ${info.authDocs}。远程访问页面时，API Key 仍只保存在当前浏览器，不会发回本机服务。`;
   }
 }
 
@@ -1094,6 +1105,25 @@ function sanitizeAiSettings(ai) {
     model: sanitizeModel(ai?.model || PROVIDER_CONFIG[provider].defaultModel),
     apiKey: sanitizeApiKey(ai?.apiKey || '')
   };
+}
+
+function getEffectiveAiSettings() {
+  const provider = normalizeProvider(els.aiProviderSelect?.value || state.settings.ai.provider);
+  const model = sanitizeModel(els.aiModelInput?.value || state.settings.ai.model || PROVIDER_CONFIG[provider].defaultModel) || PROVIDER_CONFIG[provider].defaultModel;
+  const apiKey = sanitizeApiKey(els.aiApiKeyInput?.value || state.settings.ai.apiKey);
+  const nextSettings = { provider, model, apiKey };
+
+  if (
+    state.settings.ai.provider !== nextSettings.provider ||
+    state.settings.ai.model !== nextSettings.model ||
+    state.settings.ai.apiKey !== nextSettings.apiKey
+  ) {
+    state.settings.ai = nextSettings;
+    saveState();
+    renderSettings();
+  }
+
+  return nextSettings;
 }
 
 function normalizeProvider(value) {

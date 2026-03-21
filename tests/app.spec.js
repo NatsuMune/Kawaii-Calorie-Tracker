@@ -203,6 +203,7 @@ test('ai estimate fills the intake form through a direct browser provider call',
     const request = route.request();
     const payload = JSON.parse(request.postData() || '{}');
     expect(request.headers().authorization).toBe('Bearer browser-key');
+    expect(request.headers()['x-openrouter-title']).toBe('kawaii-calorie-tracker');
     expect(payload.model).toBe('openai/gpt-4o-mini');
     expect(payload.messages[0].content[0].text).toContain('牛肉面');
     await route.fulfill({
@@ -274,10 +275,11 @@ test('z.ai Coding Plan uses its dedicated browser-direct endpoint', async ({ pag
   });
 
   await page.getByRole('button', { name: '设置' }).click();
-  await page.locator('#aiProviderSelect').selectOption('z-ai-coding');
-  await page.locator('#aiModelInput').fill('glm-4.5');
-  await page.locator('#aiApiKeyInput').fill('coding-plan-key');
-  await page.locator('#aiApiKeyInput').dispatchEvent('change');
+  await page.evaluate(() => {
+    document.querySelector('#aiProviderSelect').value = 'z-ai-coding';
+    document.querySelector('#aiModelInput').value = 'glm-4.5';
+    document.querySelector('#aiApiKeyInput').value = 'coding-plan-key';
+  });
   await page.locator('.nav-btn[data-target="log"]').click();
 
   await page.locator('#aiEstimateText').fill('一份鸡腿饭，带一点青菜');
@@ -301,6 +303,22 @@ test('ai settings stay in browser storage and explain the z.ai Coding Plan direc
   await expect(page.locator('#aiProviderSelect')).toHaveValue('z-ai-coding');
   await expect(page.locator('#aiApiKeyInput')).toHaveValue('z-key-123');
   await expect(page.locator('#aiProviderStatus')).toContainText('不会经过本地服务代理');
+  await expect(page.locator('#aiDirectHint')).toContainText('Authorization: Bearer');
   await expect(page.locator('#aiDirectHint')).toContainText('Coding API');
   await expect(page.locator('#aiConfigSource')).toContainText('z.ai Coding Plan');
+});
+
+test('switching pages never submits the intake form in the background', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('还没打算保存的奶昔');
+  await page.locator('#intakeCalories').fill('333');
+  await page.locator('#intakeMealType').selectOption('snack');
+
+  await page.getByRole('button', { name: '设置' }).click();
+  await expect(page.locator('#entryCount')).toHaveText('0');
+  await expect(page.locator('#historyList')).not.toContainText('还没打算保存的奶昔');
+
+  await page.getByRole('button', { name: '主页' }).click();
+  await expect(page.locator('#entryCount')).toHaveText('0');
+  await expect(page.locator('#todayTotal')).toHaveText('0');
 });
