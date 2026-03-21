@@ -470,6 +470,14 @@ h2 { font-size: 3.35rem; line-height: 1; }
   background: rgba(255,255,255,.58);
   border: 1px dashed rgba(126,220,154,.28);
 }
+.quick-add-panel {
+  display: grid;
+  gap: 14px;
+}
+.quick-add-toggle {
+  align-self: center;
+  min-width: 72px;
+}
 .favorite-quick-add-wrap {
   display: grid;
   gap: 10px;
@@ -484,6 +492,14 @@ h2 { font-size: 3.35rem; line-height: 1; }
 .quick-add-head {
   align-items: flex-start;
   margin-bottom: 0;
+}
+.settings-fixed-provider {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.7);
+  border: 1px dashed rgba(126,220,154,.35);
 }
 .quick-add-list {
   display: grid;

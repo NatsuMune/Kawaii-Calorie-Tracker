@@ -122,18 +122,22 @@
               <div class="section-head quick-add-head">
                 <div>
                   <h4 id="quickAddTitle">快捷模板</h4>
-                  <p class="subtle">常吃的先点一下，再微调就好。</p>
+                  <p class="subtle">默认收起，需要时再展开点一下。</p>
                 </div>
-                <span class="sparkle">🍡</span>
+                <button id="quickAddToggleBtn" type="button" class="mini-ghost-btn quick-add-toggle" aria-expanded="false" aria-controls="quickAddPanel">
+                  展开
+                </button>
               </div>
-              <div id="favoriteQuickAddWrap" class="favorite-quick-add-wrap hidden">
-                <div class="favorite-quick-add-head">
-                  <strong>我的收藏</strong>
-                  <span class="subtle">从历史记录一键加入</span>
+              <div id="quickAddPanel" class="quick-add-panel hidden">
+                <div id="favoriteQuickAddWrap" class="favorite-quick-add-wrap hidden">
+                  <div class="favorite-quick-add-head">
+                    <strong>我的收藏</strong>
+                    <span class="subtle">从历史记录一键加入</span>
+                  </div>
+                  <div id="favoriteQuickAddList" class="quick-add-list"></div>
                 </div>
-                <div id="favoriteQuickAddList" class="quick-add-list"></div>
+                <div id="quickAddList" class="quick-add-list"></div>
               </div>
-              <div id="quickAddList" class="quick-add-list"></div>
             </section>
 
             <section class="quick-add-card ai-card" aria-labelledby="aiEstimateTitle">
@@ -203,13 +207,10 @@
               <input id="goalInput" type="number" min="0" max="9999" inputmode="numeric" />
             </div>
             <div class="settings-stack ai-settings-stack">
-              <label>
-                <span>AI 提供商</span>
-                <select id="aiProviderSelect">
-                  <option value="openrouter">OpenRouter</option>
-                  <option value="z-ai-coding">z.ai Coding Plan</option>
-                </select>
-              </label>
+              <div class="settings-fixed-provider" aria-label="AI 提供商">
+                <span class="subtle">AI 提供商</span>
+                <strong>OpenRouter</strong>
+              </div>
               <label>
                 <span>模型</span>
                 <input id="aiModelInput" type="text" maxlength="120" placeholder="例如：openai/gpt-4o-mini" />

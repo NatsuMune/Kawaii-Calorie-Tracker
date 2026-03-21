@@ -10,13 +10,6 @@ const PROVIDER_CONFIG = Object.freeze({
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     apiKeyPlaceholder: 'sk-or-v1-...',
     authDocs: 'Authorization: Bearer <OPENROUTER_API_KEY> + HTTP-Referer / X-OpenRouter-Title'
-  },
-  'z-ai-coding': {
-    label: 'z.ai Coding Plan',
-    defaultModel: 'glm-4.5',
-    endpoint: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
-    apiKeyPlaceholder: 'z.ai Coding Plan API key',
-    authDocs: 'Authorization: Bearer <ZAI_CODING_PLAN_API_KEY>'
   }
 });
 const DEFAULT_AI_SETTINGS = Object.freeze({
@@ -44,6 +37,7 @@ let historyMealFilter = '';
 let chartRangeDays = 7;
 let storageWarningShown = false;
 let estimatingInFlight = false;
+let quickAddExpanded = false;
 
 const MEAL_TYPE_LABELS = {
   breakfast: '早餐',
@@ -82,7 +76,6 @@ const els = {
   aiEstimateBtn: document.getElementById('aiEstimateBtn'),
   aiEstimateStatus: document.getElementById('aiEstimateStatus'),
   aiEstimateResult: document.getElementById('aiEstimateResult'),
-  aiProviderSelect: document.getElementById('aiProviderSelect'),
   aiModelInput: document.getElementById('aiModelInput'),
   aiApiKeyInput: document.getElementById('aiApiKeyInput'),
   aiConfigSource: document.getElementById('aiConfigSource'),
@@ -96,6 +89,8 @@ const els = {
   quickAddList: document.getElementById('quickAddList'),
   favoriteQuickAddWrap: document.getElementById('favoriteQuickAddWrap'),
   favoriteQuickAddList: document.getElementById('favoriteQuickAddList'),
+  quickAddToggleBtn: document.getElementById('quickAddToggleBtn'),
+  quickAddPanel: document.getElementById('quickAddPanel'),
   chartTitle: document.getElementById('chartTitle'),
   chartSummary: document.getElementById('chartSummary'),
   chartRange7Btn: document.getElementById('chartRange7Btn'),
@@ -352,20 +347,6 @@ function bindSettings() {
     pulse();
   });
 
-  const handleAiProviderSelection = () => {
-    const selectedProvider = normalizeProvider(els.aiProviderSelect?.value);
-    const previousProvider = normalizeProvider(state.settings.ai.provider);
-    state.settings.ai.provider = selectedProvider;
-    if (!state.settings.ai.model || state.settings.ai.model === PROVIDER_CONFIG[previousProvider].defaultModel) {
-      state.settings.ai.model = PROVIDER_CONFIG[selectedProvider].defaultModel;
-    }
-    saveState();
-    renderSettings();
-  };
-
-  els.aiProviderSelect?.addEventListener('input', handleAiProviderSelection);
-  els.aiProviderSelect?.addEventListener('change', handleAiProviderSelection);
-
   els.aiModelInput?.addEventListener('change', () => {
     state.settings.ai.model = sanitizeModel(els.aiModelInput.value);
     saveState();
@@ -469,15 +450,16 @@ function bindQuickAdd() {
 
   els.quickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
   els.favoriteQuickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
+  els.quickAddToggleBtn?.addEventListener('click', () => {
+    quickAddExpanded = !quickAddExpanded;
+    renderQuickAdd();
+  });
 }
 
 function applyTemplate(template) {
   if (els.intakeText) els.intakeText.value = template.text;
   if (els.intakeCalories) els.intakeCalories.value = template.calories;
   if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(template.mealType);
-  if (!editingEntryId && els.intakeLoggedAt && !els.intakeLoggedAt.value) {
-    els.intakeLoggedAt.value = toDatetimeLocalValue(new Date());
-  }
   els.intakeText?.focus();
   toast(`已填入 ${template.text}`);
   pulse([8, 16, 8]);
@@ -524,9 +506,6 @@ function startEditing(entryId) {
 function stopEditing(keepInputs = false) {
   editingEntryId = null;
   if (!keepInputs) els.intakeForm?.reset();
-  if (els.intakeLoggedAt && !keepInputs) {
-    els.intakeLoggedAt.value = toDatetimeLocalValue(new Date());
-  }
   renderEditorState();
 }
 
@@ -806,7 +785,6 @@ function renderSettings() {
   const provider = normalizeProvider(state.settings.ai.provider);
   const info = PROVIDER_CONFIG[provider];
   if (els.goalInput) els.goalInput.value = state.settings.goal;
-  if (els.aiProviderSelect) els.aiProviderSelect.value = provider;
   if (els.aiModelInput) els.aiModelInput.value = state.settings.ai.model || '';
   if (els.aiModelInput) els.aiModelInput.placeholder = info.defaultModel;
   if (els.aiApiKeyInput) {
@@ -822,14 +800,17 @@ function renderSettings() {
       : `${info.label}：还没填写 API Key，暂时不能估算。`;
   }
   if (els.aiDirectHint) {
-    els.aiDirectHint.textContent = provider === 'z-ai-coding'
-      ? `z.ai Coding Plan 会走它自己的 Coding API 直连地址，并按官方约定发送 ${info.authDocs}。如果失败，常见原因是密钥不属于 Coding Plan、模型不支持，或提供商临时拦截浏览器跨域请求。`
-      : `OpenRouter 会由浏览器直接请求，并按官方约定发送 ${info.authDocs}。远程访问页面时，API Key 仍只保存在当前浏览器，不会发回本机服务。`;
+    els.aiDirectHint.textContent = `OpenRouter 会由浏览器直接请求，并按官方约定发送 ${info.authDocs}。远程访问页面时，API Key 仍只保存在当前浏览器，不会发回本机服务。`;
   }
 }
 
 function renderQuickAdd() {
   if (!els.quickAddList) return;
+  if (els.quickAddToggleBtn) {
+    els.quickAddToggleBtn.textContent = quickAddExpanded ? '收起' : '展开';
+    els.quickAddToggleBtn.setAttribute('aria-expanded', String(quickAddExpanded));
+  }
+  els.quickAddPanel?.classList.toggle('hidden', !quickAddExpanded);
   els.quickAddList.innerHTML = renderQuickAddButtons(QUICK_ADD_TEMPLATES, 'default');
   if (els.favoriteQuickAddList && els.favoriteQuickAddWrap) {
     const hasFavorites = state.settings.favorites.length > 0;
@@ -1103,7 +1084,7 @@ function sanitizeFavorites(favorites) {
 }
 
 function sanitizeAiSettings(ai) {
-  const provider = normalizeProvider(ai?.provider);
+  const provider = 'openrouter';
   return {
     provider,
     model: sanitizeModel(ai?.model || PROVIDER_CONFIG[provider].defaultModel),
@@ -1112,7 +1093,7 @@ function sanitizeAiSettings(ai) {
 }
 
 function getEffectiveAiSettings() {
-  const provider = normalizeProvider(els.aiProviderSelect?.value || state.settings.ai.provider);
+  const provider = 'openrouter';
   const model = sanitizeModel(els.aiModelInput?.value || state.settings.ai.model || PROVIDER_CONFIG[provider].defaultModel) || PROVIDER_CONFIG[provider].defaultModel;
   const apiKey = sanitizeApiKey(els.aiApiKeyInput?.value || state.settings.ai.apiKey);
   const nextSettings = { provider, model, apiKey };
@@ -1131,7 +1112,7 @@ function getEffectiveAiSettings() {
 }
 
 function normalizeProvider(value) {
-  return value === 'z-ai-coding' || value === 'z-ai' ? 'z-ai-coding' : 'openrouter';
+  return value === 'openrouter' ? 'openrouter' : 'openrouter';
 }
 
 function sanitizeModel(value) {

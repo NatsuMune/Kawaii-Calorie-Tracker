@@ -31,17 +31,49 @@ async function seedEntries(page) {
   return { now, yesterday };
 }
 
+test('quick-add is collapsed by default and can be expanded', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+
+  await expect(page.locator('#quickAddToggleBtn')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#quickAddPanel')).toBeHidden();
+
+  await page.getByRole('button', { name: '展开' }).click();
+
+  await expect(page.locator('#quickAddToggleBtn')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#quickAddPanel')).toBeVisible();
+  await expect(page.getByRole('button', { name: /快捷填入 拿铁/ })).toBeVisible();
+});
+
 test('quick-add fills the form and saves an entry for today', async ({ page }) => {
   await page.getByRole('button', { name: '记录' }).click();
+  await page.getByRole('button', { name: '展开' }).click();
   await page.getByRole('button', { name: /快捷填入 拿铁/ }).click();
 
   await expect(page.locator('#intakeText')).toHaveValue('拿铁');
   await expect(page.locator('#intakeCalories')).toHaveValue('180');
   await expect(page.locator('#intakeMealType')).toHaveValue('breakfast');
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue('');
 
   await page.getByRole('button', { name: '保存记录' }).click();
   await expect(page.locator('#todayTotal')).toHaveText('180');
   await expect(page.locator('#historyList')).toContainText('拿铁');
+});
+
+test('saving with an empty log time uses the click-time minute instead of a prefetched value', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('延迟保存测试');
+  await page.locator('#intakeCalories').fill('123');
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue('');
+
+  const expectedMinute = await page.evaluate(() => {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
+  });
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  await page.getByRole('button', { name: '编辑这条记录' }).click();
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue(expectedMinute);
 });
 
 test('duplicate entry creates another record and updates totals', async ({ page }) => {
@@ -142,7 +174,6 @@ test('mobile dashboard layout stays within viewport and matches visual baseline'
 
 test('mobile log view matches visual baseline', async ({ page }) => {
   await page.getByRole('button', { name: '记录' }).click();
-  await page.getByRole('button', { name: /快捷填入 拿铁/ }).click();
 
   await expect(page).toHaveScreenshot('mobile-log-view.png', {
     fullPage: true,
@@ -169,6 +200,7 @@ test('favorite entry appears in favorite quick-add section and can be reused', a
 
   await page.getByRole('button', { name: '收藏这条记录' }).click();
   await page.locator('.nav-btn[data-target="log"]').click();
+  await page.getByRole('button', { name: '展开' }).click();
 
   await expect(page.locator('#favoriteQuickAddWrap')).toBeVisible();
   await expect(page.locator('#favoriteQuickAddList')).toContainText('希腊酸奶');
@@ -180,6 +212,7 @@ test('favorite entry appears in favorite quick-add section and can be reused', a
   await expect(page.locator('#intakeText')).toHaveValue('希腊酸奶');
   await expect(page.locator('#intakeCalories')).toHaveValue('160');
   await expect(page.locator('#intakeMealType')).toHaveValue('breakfast');
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue('');
 });
 
 
@@ -198,7 +231,7 @@ test('chart can switch between 7-day and 30-day modes', async ({ page }) => {
   await expect(page.locator('#chartRange7Btn')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('ai estimate fills the intake form through a direct browser provider call', async ({ page }) => {
+test('ai estimate uses OpenRouter as the only built-in browser-direct provider', async ({ page }) => {
   await page.route('https://openrouter.ai/api/v1/chat/completions', async (route) => {
     const request = route.request();
     const payload = JSON.parse(request.postData() || '{}');
@@ -229,7 +262,8 @@ test('ai estimate fills the intake form through a direct browser provider call',
   });
 
   await page.getByRole('button', { name: '设置' }).click();
-  await page.locator('#aiProviderSelect').selectOption('openrouter');
+  await expect(page.locator('#aiProviderSelect')).toHaveCount(0);
+  await expect(page.locator('.settings-fixed-provider')).toContainText('OpenRouter');
   await page.locator('#aiModelInput').fill('openai/gpt-4o-mini');
   await page.locator('#aiApiKeyInput').fill('browser-key');
   await page.locator('#aiApiKeyInput').dispatchEvent('change');
@@ -245,69 +279,32 @@ test('ai estimate fills the intake form through a direct browser provider call',
   await expect(page.locator('#aiEstimateResult')).toContainText('包含面条、牛肉与汤底');
 });
 
-test('z.ai Coding Plan can be selected in settings and uses its dedicated browser-direct endpoint', async ({ page }) => {
-  await page.route('https://api.z.ai/api/coding/paas/v4/chat/completions', async (route) => {
-    const request = route.request();
-    const payload = JSON.parse(request.postData() || '{}');
-    expect(request.headers().authorization).toBe('Bearer coding-plan-key');
-    expect(payload.model).toBe('glm-4.5');
-    expect(payload.messages[0].content[0].text).toContain('鸡腿饭');
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                foodName: '鸡腿饭',
-                estimatedCalories: 720,
-                confidence: 'medium',
-                reasoning: '按一份常见套餐估算',
-                portionNote: '含米饭、鸡腿和配菜',
-                mealType: 'lunch'
-              })
-            }
-          }
-        ]
-      })
-    });
-  });
-
+test('ai settings stay in browser storage for OpenRouter', async ({ page }) => {
   await page.getByRole('button', { name: '设置' }).click();
-  await page.locator('#aiProviderSelect').selectOption('z-ai-coding');
-  await expect(page.locator('#aiProviderSelect')).toHaveValue('z-ai-coding');
-  await expect(page.locator('#aiModelInput')).toHaveValue('glm-4.5');
-  await expect(page.locator('#aiConfigSource')).toContainText('z.ai Coding Plan · glm-4.5');
-  await expect(page.locator('#aiDirectHint')).toContainText('Coding API');
-  await page.locator('#aiApiKeyInput').fill('coding-plan-key');
-  await page.locator('#aiApiKeyInput').dispatchEvent('change');
-  await page.locator('.nav-btn[data-target="log"]').click();
-
-  await page.locator('#aiEstimateText').fill('一份鸡腿饭，带一点青菜');
-  await page.getByRole('button', { name: 'AI 估算并填入' }).click();
-
-  await expect(page.locator('#intakeText')).toHaveValue('鸡腿饭');
-  await expect(page.locator('#intakeCalories')).toHaveValue('720');
-  await expect(page.locator('#intakeMealType')).toHaveValue('lunch');
-  await expect(page.locator('#aiEstimateStatus')).toContainText('z.ai Coding Plan · glm-4.5');
-  await expect(page.locator('#aiEstimateResult')).toContainText('含米饭、鸡腿和配菜');
-});
-
-test('ai settings stay in browser storage and explain the z.ai Coding Plan direct path', async ({ page }) => {
-  await page.getByRole('button', { name: '设置' }).click();
-  await page.locator('#aiProviderSelect').selectOption('z-ai-coding');
-  await page.locator('#aiApiKeyInput').fill('z-key-123');
+  await expect(page.locator('.settings-fixed-provider')).toContainText('OpenRouter');
+  await page.locator('#aiApiKeyInput').fill('or-key-123');
   await page.locator('#aiApiKeyInput').dispatchEvent('change');
   await page.reload();
   await page.getByRole('button', { name: '设置' }).click();
 
-  await expect(page.locator('#aiProviderSelect')).toHaveValue('z-ai-coding');
-  await expect(page.locator('#aiApiKeyInput')).toHaveValue('z-key-123');
+  await expect(page.locator('#aiApiKeyInput')).toHaveValue('or-key-123');
   await expect(page.locator('#aiProviderStatus')).toContainText('不会经过本地服务代理');
   await expect(page.locator('#aiDirectHint')).toContainText('Authorization: Bearer');
-  await expect(page.locator('#aiDirectHint')).toContainText('Coding API');
-  await expect(page.locator('#aiConfigSource')).toContainText('z.ai Coding Plan');
+  await expect(page.locator('#aiConfigSource')).toContainText('OpenRouter');
+});
+
+test('editing preserves an existing logged time value', async ({ page }) => {
+  const now = new Date();
+  const localValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T09:15`;
+
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('手动时间测试');
+  await page.locator('#intakeCalories').fill('250');
+  await page.locator('#intakeLoggedAt').fill(localValue);
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  await page.getByRole('button', { name: '编辑这条记录' }).click();
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue(localValue);
 });
 
 test('switching pages never submits the intake form in the background', async ({ page }) => {
