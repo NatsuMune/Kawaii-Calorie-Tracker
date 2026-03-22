@@ -6,7 +6,7 @@ const DB_RECORD_KEY = 'primary';
 const PROVIDER_CONFIG = Object.freeze({
   openrouter: {
     label: 'OpenRouter',
-    defaultModel: 'openai/gpt-4o-mini',
+    defaultModel: 'arcee-ai/trinity-large-preview:free',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     apiKeyPlaceholder: 'sk-or-v1-...',
     authDocs: 'Authorization: Bearer <OPENROUTER_API_KEY> + HTTP-Referer / X-OpenRouter-Title'
@@ -370,7 +370,7 @@ function bindSettings() {
   });
 
   els.aiModelInput?.addEventListener('change', () => {
-    state.settings.ai.model = sanitizeModel(els.aiModelInput.value);
+    state.settings.ai.model = getEffectiveModel(els.aiModelInput.value);
     saveState();
     renderSettings();
   });
@@ -634,7 +634,7 @@ function getEffectiveAiSettings() {
   const ai = sanitizeAiSettings(state.settings.ai);
   return {
     provider: 'openrouter',
-    model: sanitizeModel(ai.model) || PROVIDER_CONFIG.openrouter.defaultModel,
+    model: getEffectiveModel(ai.model),
     apiKey: sanitizeApiKey(ai.apiKey)
   };
 }
@@ -642,9 +642,13 @@ function getEffectiveAiSettings() {
 function sanitizeAiSettings(ai) {
   return {
     provider: 'openrouter',
-    model: sanitizeModel(ai?.model) || DEFAULT_AI_SETTINGS.model,
+    model: getEffectiveModel(ai?.model),
     apiKey: sanitizeApiKey(ai?.apiKey)
   };
+}
+
+function getEffectiveModel(value) {
+  return sanitizeModel(value) || PROVIDER_CONFIG.openrouter.defaultModel;
 }
 
 function sanitizeModel(value) {
@@ -812,20 +816,13 @@ function renderHistory() {
 function renderSettings() {
   const provider = 'openrouter';
   const info = PROVIDER_CONFIG[provider];
+  const aiSettings = getEffectiveAiSettings();
   if (els.goalInput) els.goalInput.value = state.settings.goal;
-  if (els.aiModelInput) els.aiModelInput.value = state.settings.ai.model || '';
+  if (els.aiModelInput) els.aiModelInput.value = aiSettings.model;
   if (els.aiModelInput) els.aiModelInput.placeholder = info.defaultModel;
   if (els.aiApiKeyInput) {
     els.aiApiKeyInput.value = state.settings.ai.apiKey || '';
     els.aiApiKeyInput.placeholder = info.apiKeyPlaceholder;
-  }
-  if (els.aiConfigSource) {
-    els.aiConfigSource.textContent = `${info.label} · ${state.settings.ai.model || info.defaultModel} · 浏览器本地保存 API Key`;
-  }
-  if (els.aiProviderStatus) {
-    els.aiProviderStatus.textContent = state.settings.ai.apiKey
-      ? `OpenRouter · ${state.settings.ai.model || info.defaultModel} · API Key 仅保存在当前浏览器`
-      : `OpenRouter · ${state.settings.ai.model || info.defaultModel} · 填入 API Key 后即可使用`;
   }
 }
 

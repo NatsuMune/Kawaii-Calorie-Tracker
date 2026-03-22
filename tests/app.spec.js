@@ -247,7 +247,7 @@ test('ai estimate uses OpenRouter as the only built-in browser-direct provider',
     const payload = JSON.parse(request.postData() || '{}');
     expect(request.headers().authorization).toBe('Bearer browser-key');
     expect(request.headers()['x-openrouter-title']).toBe('kawaii-calorie-tracker');
-    expect(payload.model).toBe('openai/gpt-4o-mini');
+    expect(payload.model).toBe('arcee-ai/trinity-large-preview:free');
     expect(payload.messages[0].content[0].text).toContain('牛肉面');
     await route.fulfill({
       status: 200,
@@ -274,7 +274,7 @@ test('ai estimate uses OpenRouter as the only built-in browser-direct provider',
   await page.getByRole('button', { name: '设置' }).click();
   await expect(page.locator('#aiProviderSelect')).toHaveCount(0);
   await expect(page.locator('.settings-fixed-provider')).toContainText('OpenRouter');
-  await page.locator('#aiModelInput').fill('openai/gpt-4o-mini');
+  await expect(page.locator('#aiModelInput')).toHaveValue('arcee-ai/trinity-large-preview:free');
   await page.locator('#aiApiKeyInput').fill('browser-key');
   await page.locator('#aiApiKeyInput').dispatchEvent('change');
   await page.locator('.nav-btn[data-target="log"]').click();
@@ -285,7 +285,7 @@ test('ai estimate uses OpenRouter as the only built-in browser-direct provider',
   await expect(page.locator('#intakeText')).toHaveValue('牛肉面');
   await expect(page.locator('#intakeCalories')).toHaveValue('640');
   await expect(page.locator('#intakeMealType')).toHaveValue('lunch');
-  await expect(page.locator('#aiEstimateStatus')).toContainText('OpenRouter · openai/gpt-4o-mini');
+  await expect(page.locator('#aiEstimateStatus')).toContainText('OpenRouter · arcee-ai/trinity-large-preview:free');
   await expect(page.locator('#aiEstimateResult')).toContainText('包含面条、牛肉与汤底');
 });
 
@@ -298,9 +298,36 @@ test('ai settings stay in browser storage for OpenRouter', async ({ page }) => {
   await page.getByRole('button', { name: '设置' }).click();
 
   await expect(page.locator('#aiApiKeyInput')).toHaveValue('or-key-123');
-  await expect(page.locator('#aiProviderStatus')).toContainText('API Key 仅保存在当前浏览器');
-  await expect(page.locator('#aiProviderStatus')).toContainText('openai/gpt-4o-mini');
+  await expect(page.locator('#aiModelInput')).toHaveValue('arcee-ai/trinity-large-preview:free');
   await expect(page.locator('.settings-fixed-provider')).toHaveText('OpenRouter');
+});
+
+test('clearing the ai model snaps back to the default model and persists it', async ({ page }) => {
+  await page.getByRole('button', { name: '设置' }).click();
+  await expect(page.locator('#aiModelInput')).toHaveValue('arcee-ai/trinity-large-preview:free');
+
+  await page.locator('#aiModelInput').fill('openai/gpt-4o-mini');
+  await page.locator('#aiModelInput').dispatchEvent('change');
+  await expect(page.locator('#aiModelInput')).toHaveValue('openai/gpt-4o-mini');
+
+  await page.locator('#aiModelInput').fill('');
+  await page.locator('#aiModelInput').dispatchEvent('change');
+  await expect(page.locator('#aiModelInput')).toHaveValue('arcee-ai/trinity-large-preview:free');
+
+  await page.reload();
+  await page.getByRole('button', { name: '设置' }).click();
+  await expect(page.locator('#aiModelInput')).toHaveValue('arcee-ai/trinity-large-preview:free');
+
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kawaii-calorie-tracker-v3')));
+  expect(stored.settings.ai.model).toBe('arcee-ai/trinity-large-preview:free');
+});
+
+test('ai settings section stays minimal without explanatory helper copy', async ({ page }) => {
+  await page.getByRole('button', { name: '设置' }).click();
+
+  await expect(page.locator('#aiProviderStatus')).toHaveCount(0);
+  await expect(page.locator('#aiModelInput')).toHaveAttribute('placeholder', 'arcee-ai/trinity-large-preview:free');
+  await expect(page.locator('#aiApiKeyInput')).toHaveAttribute('placeholder', 'sk-or-v1-...');
 });
 
 test('editing shows date-only input and preserves the explicit saved date', async ({ page }) => {
