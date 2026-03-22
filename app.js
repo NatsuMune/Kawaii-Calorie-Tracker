@@ -793,11 +793,16 @@ function renderHistory() {
   els.historyList.innerHTML = visible.map(entry => `
     <article class="history-item">
       <div class="history-meta">
-        <strong>${highlightMatch(entry.text, historyQuery)}</strong>
-        <p class="subtle history-meta-line"><span class="meal-badge">${highlightMatch(getMealTypeLabel(entry.mealType), historyQuery)}</span><span>${formatEntryDate(entry)}</span></p>
+        <div class="history-meta-top">
+          <strong>${highlightMatch(entry.text, historyQuery)}</strong>
+          <span class="subtle history-date">${formatEntryDate(entry)}</span>
+        </div>
+        <div class="history-meta-line">
+          <span class="meal-badge">${highlightMatch(getMealTypeLabel(entry.mealType), historyQuery)}</span>
+          <span class="history-calories">${entry.calories} kcal</span>
+        </div>
       </div>
-      <div class="history-actions">
-        <div class="history-calories">${entry.calories} kcal</div>
+      <div class="history-actions" aria-label="记录操作">
         <div class="history-btn-row">
           <button type="button" class="mini-ghost-btn" data-edit-id="${entry.id}" aria-label="编辑这条记录">编辑</button>
           <button type="button" class="mini-ghost-btn" data-duplicate-id="${entry.id}" aria-label="再记一次这条记录">再记一次</button>

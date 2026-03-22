@@ -192,6 +192,44 @@ test('mobile log view matches visual baseline', async ({ page }) => {
   });
 });
 
+test('mobile history cards keep metadata and actions in a stable stacked layout', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('超长名字测试超级豪华双层芝士牛肉汉堡配薯条');
+  await page.locator('#intakeCalories').fill('780');
+  await page.locator('#intakeMealType').selectOption('dinner');
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  const card = page.locator('.history-item').first();
+  const meta = card.locator('.history-meta');
+  const actions = card.locator('.history-actions');
+  const buttons = card.locator('.history-btn-row > button');
+
+  await expect(card.locator('.history-date')).toBeVisible();
+  await expect(card.locator('.meal-badge')).toBeVisible();
+  await expect(card.locator('.history-calories')).toBeVisible();
+  await expect(buttons).toHaveCount(4);
+
+  const cardBox = await card.boundingBox();
+  const metaBox = await meta.boundingBox();
+  const actionsBox = await actions.boundingBox();
+  const firstButtonBox = await buttons.nth(0).boundingBox();
+  const secondButtonBox = await buttons.nth(1).boundingBox();
+  const thirdButtonBox = await buttons.nth(2).boundingBox();
+
+  expect(cardBox).not.toBeNull();
+  expect(metaBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  expect(firstButtonBox).not.toBeNull();
+  expect(secondButtonBox).not.toBeNull();
+  expect(thirdButtonBox).not.toBeNull();
+
+  expect(actionsBox.y).toBeGreaterThan(metaBox.y + metaBox.height - 1);
+  expect(firstButtonBox.x + firstButtonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+  expect(secondButtonBox.x + secondButtonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+  expect(Math.abs(firstButtonBox.y - secondButtonBox.y)).toBeLessThan(2);
+  expect(thirdButtonBox.y).toBeGreaterThan(firstButtonBox.y + firstButtonBox.height - 1);
+});
+
 
 test('history meal filter shows only matching meal type entries', async ({ page }) => {
   await seedEntries(page);
