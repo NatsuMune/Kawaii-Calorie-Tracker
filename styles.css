@@ -1,9 +1,3 @@
-@font-face {
-  font-family: "Xingye Langman Yuzhou Wenrou";
-  src: url("./fonts/xingye-langman-yuzhou-wenrou.ttf") format("truetype");
-  font-display: swap;
-}
-
 :root {
   --bg: linear-gradient(180deg, #eefdf1 0%, #f7fff2 45%, #f3fffb 100%);
   --card: rgba(255, 255, 255, 0.82);
@@ -20,6 +14,7 @@
   --radius-md: 16px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
 }
 * { box-sizing: border-box; }
 html, body {
@@ -27,7 +22,7 @@ html, body {
   min-height: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  font-family: "Xingye Langman Yuzhou Wenrou";
+  font-family: var(--font-sans);
   font-size: 17px;
   color: var(--text);
   -webkit-text-size-adjust: 100%;
@@ -60,7 +55,7 @@ input[type="date"],
 input[type="number"],
 input[type="search"],
 select {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 500;
 }
 input,
@@ -119,15 +114,33 @@ select:focus {
   -webkit-backdrop-filter: blur(16px);
 }
 .topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 18px 16px;
+  display: block;
+  padding: 10px;
   border-radius: 26px;
   background: linear-gradient(180deg, rgba(255,255,255,.86), rgba(251,255,247,.82));
   box-shadow: var(--shadow);
   border: 1px solid rgba(214, 232, 210, .9);
   position: relative;
+  overflow: hidden;
+}
+.topbar-banner {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1341 / 363;
+  object-fit: contain;
+  border-radius: 18px;
+}
+.topbar #installBtn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.84);
+  box-shadow: 0 10px 24px rgba(55, 84, 69, .14);
 }
 .eyebrow {
   margin: 0 0 6px;
@@ -141,9 +154,9 @@ h1 { font-size: 1.55rem; }
 h3 { font-size: 1.18rem; }
 h4 { font-size: 1.02rem; }
 .app-title {
-  font-family: "Xingye Langman Yuzhou Wenrou";
+  font-family: var(--font-sans);
   font-size: 2.32rem;
-  font-weight: 400;
+  font-weight: 800;
   letter-spacing: .04em;
   color: #fffef7;
   -webkit-text-stroke: 2px #62bc7d;
@@ -675,6 +688,10 @@ h2 { font-size: 3.35rem; line-height: 1; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 @media (min-width: 430px) {
   .app-shell { padding-left: 18px; padding-right: 18px; }
+  .topbar #installBtn {
+    top: 18px;
+    right: 18px;
+  }
 }
 .tape-deco::before,
 .tape-deco::after {

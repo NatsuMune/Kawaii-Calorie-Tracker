@@ -335,10 +335,9 @@ function bindForm() {
       state.entries.unshift(entry);
       saveState();
       renderAll();
-      stopEditing();
+      resetLogComposer();
       toast('已保存 ♡');
       pulse([12]);
-      switchView('dashboard');
       return false;
     } catch (err) {
       console.error(err);
@@ -514,6 +513,15 @@ function startEditing(entryId) {
   els.intakeText?.focus();
   toast('已载入记录，修改后保存');
   pulse([8, 16, 8]);
+}
+
+function resetLogComposer() {
+  stopEditing();
+  if (els.aiEstimateText) els.aiEstimateText.value = '';
+  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = '';
+  if (els.aiEstimateResult) els.aiEstimateResult.textContent = '';
+  switchView('log');
+  els.intakeText?.focus();
 }
 
 function stopEditing(keepInputs = false) {

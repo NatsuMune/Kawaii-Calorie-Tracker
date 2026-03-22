@@ -27,6 +27,7 @@ async function seedEntries(page) {
   await page.locator('#intakeMealType').selectOption('snack');
   await page.locator('#intakeLoggedAt').fill(fmt(yesterday));
   await page.getByRole('button', { name: '保存记录' }).click();
+  await page.getByRole('button', { name: '主页' }).click();
 
   return { now, yesterday };
 }
@@ -68,8 +69,38 @@ test('quick-add fills the form and saves an entry for today', async ({ page }) =
   await expect(page.locator('#intakeLoggedAt')).toHaveValue('');
 
   await page.getByRole('button', { name: '保存记录' }).click();
+  await expect(page.locator('.view[data-view="log"]')).toHaveClass(/active/);
+  await expect(page.locator('#intakeText')).toHaveValue('');
+  await expect(page.locator('#intakeCalories')).toHaveValue('');
+  await expect(page.locator('#intakeMealType')).toHaveValue('breakfast');
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue('');
   await expect(page.locator('#todayTotal')).toHaveText('180');
   await expect(page.locator('#historyList')).toContainText('拿铁');
+});
+
+test('saving a new entry clears the log screen for the next intake', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('红豆面包');
+  await page.locator('#intakeCalories').fill('260');
+  await page.locator('#intakeMealType').selectOption('snack');
+  await page.locator('#intakeLoggedAt').fill('2026-03-21');
+  await page.locator('#aiEstimateText').fill('刚刚估算过的内容');
+  await page.evaluate(() => {
+    document.getElementById('aiEstimateStatus').textContent = 'OpenRouter · model';
+    document.getElementById('aiEstimateResult').textContent = '上一条估算结果';
+  });
+
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  await expect(page.locator('.view[data-view="log"]')).toHaveClass(/active/);
+  await expect(page.locator('#intakeText')).toHaveValue('');
+  await expect(page.locator('#intakeCalories')).toHaveValue('');
+  await expect(page.locator('#intakeMealType')).toHaveValue('breakfast');
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue('');
+  await expect(page.locator('#aiEstimateText')).toHaveValue('');
+  await expect(page.locator('#aiEstimateStatus')).toHaveText('');
+  await expect(page.locator('#aiEstimateResult')).toHaveText('');
+  await expect(page.locator('#intakeText')).toBeFocused();
 });
 
 test('saving with an empty date uses today when you reopen the entry', async ({ page }) => {
@@ -84,6 +115,7 @@ test('saving with an empty date uses today when you reopen the entry', async ({ 
   });
   await page.getByRole('button', { name: '保存记录' }).click();
 
+  await page.getByRole('button', { name: '主页' }).click();
   await page.getByRole('button', { name: '编辑这条记录' }).click();
   await expect(page.locator('#intakeLoggedAt')).toHaveValue(expectedDate);
 });
@@ -197,6 +229,7 @@ test('mobile history cards keep metadata and actions in a stable stacked layout'
   await page.locator('#intakeCalories').fill('780');
   await page.locator('#intakeMealType').selectOption('dinner');
   await page.getByRole('button', { name: '保存记录' }).click();
+  await page.getByRole('button', { name: '主页' }).click();
 
   const card = page.locator('.history-item').first();
   const meta = card.locator('.history-meta');
@@ -256,6 +289,7 @@ test('favorite entry appears in favorite quick-add section and can be reused', a
   await page.locator('#intakeCalories').fill('160');
   await page.locator('#intakeMealType').selectOption('breakfast');
   await page.getByRole('button', { name: '保存记录' }).click();
+  await page.getByRole('button', { name: '主页' }).click();
 
   await page.getByRole('button', { name: '收藏这条记录' }).click();
   await expect(page.getByRole('button', { name: '取消收藏这条记录' })).toHaveText('⭐️ 已收藏');
@@ -531,4 +565,45 @@ test('head and manifest wire the right icon sizes for browser chrome and install
       purpose: 'any'
     }
   ]);
+});
+
+test('topbar uses the banner image instead of the old text masthead', async ({ page }) => {
+  await expect(page.locator('.topbar-banner')).toHaveAttribute('src', 'assets/banner.png');
+  await expect(page.getByText('今天也一起努力呀 ✿')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '卡路里大作战' })).toHaveCount(0);
+
+  const topbarBox = await page.locator('.topbar').boundingBox();
+  const bannerBox = await page.locator('.topbar-banner').boundingBox();
+
+  expect(topbarBox).not.toBeNull();
+  expect(bannerBox).not.toBeNull();
+  expect(bannerBox.width).toBeGreaterThan(bannerBox.height * 3);
+  expect(bannerBox.width).toBeLessThanOrEqual(topbarBox.width + 1);
+  expect(bannerBox.height).toBeLessThanOrEqual(topbarBox.height + 1);
+});
+
+test('app uses system font stacks instead of bundled custom fonts', async ({ page }) => {
+  const fontInfo = await page.evaluate(() => {
+    const bodyFamily = getComputedStyle(document.body).fontFamily;
+    const fieldFamily = getComputedStyle(document.querySelector('#intakeText')).fontFamily;
+    const sheetRules = [...document.styleSheets]
+      .filter((sheet) => !sheet.href || sheet.href.startsWith(window.location.origin))
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      });
+
+    return {
+      bodyFamily,
+      fieldFamily,
+      hasCustomFontFace: sheetRules.some((rule) => rule.includes('@font-face') || rule.includes('Xingye Langman Yuzhou Wenrou'))
+    };
+  });
+
+  expect(fontInfo.bodyFamily).not.toContain('Xingye Langman Yuzhou Wenrou');
+  expect(fontInfo.fieldFamily).not.toContain('Xingye Langman Yuzhou Wenrou');
+  expect(fontInfo.hasCustomFontFace).toBe(false);
 });
