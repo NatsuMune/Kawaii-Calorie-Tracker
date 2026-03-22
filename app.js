@@ -38,6 +38,7 @@ let chartRangeDays = 7;
 let storageWarningShown = false;
 let estimatingInFlight = false;
 let quickAddExpanded = false;
+let quickAddLastPointerToggleAt = 0;
 
 const MEAL_TYPE_LABELS = {
   breakfast: '早餐',
@@ -448,11 +449,22 @@ function bindQuickAdd() {
     applyTemplate(template);
   };
 
-  els.quickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
-  els.favoriteQuickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
-  els.quickAddToggleBtn?.addEventListener('click', () => {
+  const toggleQuickAdd = () => {
     quickAddExpanded = !quickAddExpanded;
     renderQuickAdd();
+  };
+
+  els.quickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
+  els.favoriteQuickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
+  els.quickAddToggleBtn?.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'mouse' || e.button !== 0) return;
+    e.preventDefault();
+    quickAddLastPointerToggleAt = Date.now();
+    toggleQuickAdd();
+  });
+  els.quickAddToggleBtn?.addEventListener('click', (e) => {
+    if (e.detail !== 0 && Date.now() - quickAddLastPointerToggleAt < 400) return;
+    toggleQuickAdd();
   });
 }
 

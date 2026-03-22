@@ -31,17 +31,30 @@ async function seedEntries(page) {
   return { now, yesterday };
 }
 
-test('quick-add is collapsed by default and can be expanded', async ({ page }) => {
+test('quick-add is collapsed by default and can be expanded with touch', async ({ page }) => {
   await page.getByRole('button', { name: '记录' }).click();
 
-  await expect(page.locator('#quickAddToggleBtn')).toHaveAttribute('aria-expanded', 'false');
+  const toggle = page.locator('#quickAddToggleBtn');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('#quickAddPanel')).toBeHidden();
 
-  await page.getByRole('button', { name: '展开' }).click();
+  await toggle.tap();
 
-  await expect(page.locator('#quickAddToggleBtn')).toHaveAttribute('aria-expanded', 'true');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#quickAddPanel')).toBeVisible();
   await expect(page.getByRole('button', { name: /快捷填入 拿铁/ })).toBeVisible();
+});
+
+test('quick-add touch toggle does not immediately double-toggle from the follow-up click', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+
+  const toggle = page.locator('#quickAddToggleBtn');
+  await toggle.tap();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  await toggle.tap();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#quickAddPanel')).toBeHidden();
 });
 
 test('quick-add fills the form and saves an entry for today', async ({ page }) => {
