@@ -155,6 +155,7 @@ test('history date filter shows only matching day entries', async ({ page }) => 
   const yyyy = yesterday.getFullYear();
   const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
   const dd = String(yesterday.getDate()).padStart(2, '0');
+  await page.getByRole('button', { name: '筛选' }).click();
   await page.locator('#historyDateFilter').fill(`${yyyy}-${mm}-${dd}`);
 
   await expect(page.locator('#historyList')).toContainText('昨天的奶茶');
@@ -190,6 +191,7 @@ test('import asks with backup summary before overwrite', async ({ page }) => {
 
 test('mobile dashboard layout stays within viewport and matches visual baseline', async ({ page }) => {
   await seedEntries(page);
+  await page.getByRole('button', { name: '筛选' }).click();
 
   const viewport = page.viewportSize();
   const appShellBox = await page.locator('.app-shell').boundingBox();
@@ -277,10 +279,21 @@ test('mobile history cards keep metadata and actions in a stable stacked layout'
 
 test('history meal filter shows only matching meal type entries', async ({ page }) => {
   await seedEntries(page);
+  await page.getByRole('button', { name: '筛选' }).click();
   await page.locator('#historyMealFilter').selectOption('lunch');
 
   await expect(page.locator('#historyList')).toContainText('今天的午餐');
   await expect(page.locator('#historyList')).not.toContainText('昨天的奶茶');
+});
+
+test('history filters are collapsed by default and can be expanded when needed', async ({ page }) => {
+  await expect(page.locator('#historyFiltersPanel')).toBeHidden();
+  await expect(page.getByRole('button', { name: '筛选' })).toHaveAttribute('aria-expanded', 'false');
+
+  await page.getByRole('button', { name: '筛选' }).click();
+
+  await expect(page.locator('#historyFiltersPanel')).toBeVisible();
+  await expect(page.getByRole('button', { name: '收起筛选' })).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('favorite entry appears in favorite quick-add section and can be reused', async ({ page }) => {
@@ -323,6 +336,20 @@ test('chart can switch between 7-day and 30-day modes', async ({ page }) => {
   await expect(page.locator('#chartSummary')).toContainText('最近 30 天平均摄入');
   await expect(page.locator('#chartRange30Btn')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#chartRange7Btn')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('chart bar palette changes based on relationship to the daily goal', async ({ page }) => {
+  const palettes = await page.evaluate(() => ({
+    low: getChartBarPalette(600, 2000, false),
+    near: getChartBarPalette(1800, 2000, false),
+    over: getChartBarPalette(2400, 2000, true)
+  }));
+
+  expect(palettes.low.fillTop).toBe('#b2bbb7');
+  expect(palettes.near.fillTop).toBe('#7edc9a');
+  expect(palettes.over.fillTop).toBe('#e66c7d');
+  expect(palettes.low.labelText).not.toBe(palettes.near.labelText);
+  expect(palettes.near.labelText).not.toBe(palettes.over.labelText);
 });
 
 test('ai estimate uses OpenRouter as the only built-in browser-direct provider', async ({ page }) => {
@@ -521,6 +548,7 @@ test('legacy entries without explicit date get migrated from createdAt for filte
   await expect(page.locator('#historyList')).toContainText('旧记录');
   await expect(page.locator('#historyList')).toContainText('3月20日');
   await expect(page.locator('#historyList')).not.toContainText('17:15');
+  await page.getByRole('button', { name: '筛选' }).click();
   await page.locator('#historyDateFilter').fill('2026-03-20');
   await expect(page.locator('#historyList')).toContainText('旧记录');
 

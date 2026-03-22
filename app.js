@@ -34,6 +34,7 @@ let editingEntryId = null;
 let historyQuery = '';
 let historyDateFilter = '';
 let historyMealFilter = '';
+let historyFiltersExpanded = false;
 let chartRangeDays = 7;
 let storageWarningShown = false;
 let estimatingInFlight = false;
@@ -63,6 +64,8 @@ const els = {
   historySearchInput: document.getElementById('historySearchInput'),
   historyDateFilter: document.getElementById('historyDateFilter'),
   historyMealFilter: document.getElementById('historyMealFilter'),
+  historyFilterToggleBtn: document.getElementById('historyFilterToggleBtn'),
+  historyFiltersPanel: document.getElementById('historyFiltersPanel'),
   historyTodayBtn: document.getElementById('historyTodayBtn'),
   historyClearDateBtn: document.getElementById('historyClearDateBtn'),
   intakeForm: document.getElementById('intakeForm'),
@@ -392,24 +395,37 @@ function bindSettings() {
 }
 
 function bindHistory() {
+  els.historyFilterToggleBtn?.addEventListener('click', () => {
+    historyFiltersExpanded = !historyFiltersExpanded;
+    renderHistoryFilters();
+  });
+
   els.historySearchInput?.addEventListener('input', () => {
     historyQuery = (els.historySearchInput.value || '').trim();
+    historyFiltersExpanded = true;
+    renderHistoryFilters();
     renderHistory();
   });
 
   els.historyDateFilter?.addEventListener('change', () => {
     historyDateFilter = els.historyDateFilter.value || '';
+    historyFiltersExpanded = true;
+    renderHistoryFilters();
     renderHistory();
   });
 
   els.historyMealFilter?.addEventListener('change', () => {
     historyMealFilter = sanitizeMealType(els.historyMealFilter.value) === 'other' && !els.historyMealFilter.value ? '' : (els.historyMealFilter.value || '');
+    historyFiltersExpanded = true;
+    renderHistoryFilters();
     renderHistory();
   });
 
   els.historyTodayBtn?.addEventListener('click', () => {
     historyDateFilter = localDateKey();
     if (els.historyDateFilter) els.historyDateFilter.value = historyDateFilter;
+    historyFiltersExpanded = true;
+    renderHistoryFilters();
     renderHistory();
   });
 
@@ -418,6 +434,7 @@ function bindHistory() {
     historyMealFilter = '';
     if (els.historyDateFilter) els.historyDateFilter.value = '';
     if (els.historyMealFilter) els.historyMealFilter.value = '';
+    renderHistoryFilters();
     renderHistory();
   });
 
@@ -727,6 +744,7 @@ function toggleFavoriteFromEntry(entryId) {
 
 function renderAll() {
   renderStats();
+  renderHistoryFilters();
   renderHistory();
   renderSettings();
   renderQuickAdd();
@@ -825,6 +843,16 @@ function renderHistory() {
   }).join('');
 }
 
+function renderHistoryFilters() {
+  const hasActiveFilters = Boolean(historyQuery || historyDateFilter || historyMealFilter);
+  if (els.historyFilterToggleBtn) {
+    els.historyFilterToggleBtn.textContent = historyFiltersExpanded ? '收起筛选' : hasActiveFilters ? '筛选中' : '筛选';
+    els.historyFilterToggleBtn.setAttribute('aria-expanded', String(historyFiltersExpanded));
+    els.historyFilterToggleBtn.classList.toggle('active-pill', historyFiltersExpanded || hasActiveFilters);
+  }
+  els.historyFiltersPanel?.classList.toggle('hidden', !historyFiltersExpanded);
+}
+
 function renderSettings() {
   const info = PROVIDER_CONFIG.openrouter;
   const aiSettings = getEffectiveAiSettings();
@@ -898,30 +926,31 @@ function renderChart() {
     const h = rawH > 0 ? Math.max(2, rawH) : 0;
     const y = baselineY - h;
     const isToday = item.isToday;
+    const palette = getChartBarPalette(item.total, state.settings.goal, isToday);
 
     if (h > 0) {
       const grad = ctx.createLinearGradient(0, y, 0, baselineY);
-      if (isToday) {
-        grad.addColorStop(0, '#4fbe78');
-        grad.addColorStop(1, '#86e7ad');
-      } else {
-        grad.addColorStop(0, '#7edc9a');
-        grad.addColorStop(1, '#b9f2df');
-      }
+      grad.addColorStop(0, palette.fillTop);
+      grad.addColorStop(1, palette.fillBottom);
       ctx.fillStyle = grad;
       ctx.fillRect(x, y, barW, h);
 
-      if (isToday) {
-        ctx.strokeStyle = 'rgba(79, 190, 120, 0.9)';
+      if (palette.stroke) {
+        ctx.strokeStyle = palette.stroke;
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, barW, h);
       }
 
       if (chartRangeDays <= 7) {
-        ctx.fillStyle = isToday ? '#3f9f63' : '#6f9981';
-        ctx.font = '11px system-ui';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${item.total}`, x + barW / 2, Math.max(pad.top + 10, y - 6));
+        drawChartValueLabel(ctx, {
+          text: `${item.total}`,
+          xCenter: x + barW / 2,
+          y,
+          baselineY,
+          padLeft: pad.left,
+          padRight: width - pad.right,
+          palette
+        });
       }
     }
 
@@ -934,6 +963,107 @@ function renderChart() {
   });
 
   renderChartMeta(data);
+}
+
+function getChartBarPalette(total, goal, isToday) {
+  const safeGoal = Math.max(0, Number(goal) || 0);
+  const ratio = safeGoal > 0 ? total / safeGoal : 0;
+
+  if (safeGoal > 0 && ratio > 1) {
+    return isToday
+      ? {
+          fillTop: '#e66c7d',
+          fillBottom: '#f7a8b4',
+          stroke: 'rgba(200, 72, 95, 0.95)',
+          labelBorder: 'rgba(200, 72, 95, 0.35)',
+          labelText: '#7c2434'
+        }
+      : {
+          fillTop: '#f28f9c',
+          fillBottom: '#ffd0d7',
+          stroke: '',
+          labelBorder: 'rgba(226, 118, 138, 0.28)',
+          labelText: '#8f3447'
+        };
+  }
+
+  if (safeGoal > 0 && ratio >= 0.85) {
+    return isToday
+      ? {
+          fillTop: '#4fbe78',
+          fillBottom: '#86e7ad',
+          stroke: 'rgba(79, 190, 120, 0.9)',
+          labelBorder: 'rgba(79, 190, 120, 0.3)',
+          labelText: '#24583a'
+        }
+      : {
+          fillTop: '#7edc9a',
+          fillBottom: '#b9f2df',
+          stroke: '',
+          labelBorder: 'rgba(111, 153, 129, 0.28)',
+          labelText: '#375445'
+        };
+  }
+
+  return isToday
+    ? {
+        fillTop: '#8e9894',
+        fillBottom: '#c5ceca',
+        stroke: 'rgba(108, 118, 113, 0.92)',
+        labelBorder: 'rgba(108, 118, 113, 0.26)',
+        labelText: '#41514a'
+      }
+    : {
+        fillTop: '#b2bbb7',
+        fillBottom: '#dde3e0',
+        stroke: '',
+        labelBorder: 'rgba(122, 132, 127, 0.22)',
+        labelText: '#55625d'
+      };
+}
+
+function drawChartValueLabel(ctx, { text, xCenter, y, baselineY, padLeft, padRight, palette }) {
+  ctx.save();
+  ctx.font = '700 11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const metrics = ctx.measureText(text);
+  const labelWidth = Math.ceil(metrics.width) + 14;
+  const labelHeight = 20;
+  const desiredY = y - labelHeight - 6;
+  const labelY = desiredY < 4
+    ? Math.min(baselineY - labelHeight - 2, y + 6)
+    : desiredY;
+  const labelX = Math.min(Math.max(padLeft, xCenter - labelWidth / 2), padRight - labelWidth);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.strokeStyle = palette.labelBorder;
+  ctx.lineWidth = 1;
+  ctx.shadowColor = 'rgba(55, 84, 69, 0.12)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+  drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 10);
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.stroke();
+
+  ctx.fillStyle = palette.labelText;
+  ctx.fillText(text, labelX + labelWidth / 2, labelY + labelHeight / 2 + 0.5);
+  ctx.restore();
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
 }
 
 function renderChartMeta(data) {

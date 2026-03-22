@@ -376,6 +376,19 @@ h2 { font-size: 3.35rem; line-height: 1; }
   align-items: end;
   margin-bottom: 10px;
 }
+.history-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-filters-panel {
+  display: grid;
+  gap: 0;
+  margin-bottom: 14px;
+}
+.history-filter-toggle {
+  white-space: nowrap;
+}
 .history-filters-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -405,7 +418,6 @@ h2 { font-size: 3.35rem; line-height: 1; }
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
 }
 .history-search-wrap input[type="search"] {
   padding-right: 44px;
@@ -815,6 +827,11 @@ h2 { font-size: 3.35rem; line-height: 1; }
   transform: scale(.96);
 }
 @media (max-width: 430px) {
+  .history-head-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
   .history-filters-grid {
     grid-template-columns: 1fr;
   }
