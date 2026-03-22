@@ -731,6 +731,7 @@ h2 { font-size: 3.35rem; line-height: 1; }
 }
 .history-actions {
   display: grid;
+  gap: 8px;
   justify-items: end;
   align-self: stretch;
 }
@@ -774,6 +775,12 @@ h2 { font-size: 3.35rem; line-height: 1; }
 }
 .history-btn-row > button {
   min-height: 36px;
+}
+.history-btn-row-single {
+  width: 100%;
+}
+.history-btn-row-single > button {
+  flex: 0 0 auto;
 }
 .history-btn-row-compact > button {
   flex: 0 0 auto;
@@ -828,8 +835,13 @@ h2 { font-size: 3.35rem; line-height: 1; }
     width: 100%;
   }
 
-  .history-btn-row > button {
-    flex: 1 1 calc((100% - 16px) / 3);
+  .history-btn-row-single > button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .history-btn-row-compact > button {
+    flex: 1 1 calc((100% - 8px) / 2);
     width: auto;
   }
 }

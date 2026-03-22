@@ -783,9 +783,11 @@ function renderHistory() {
         </div>
       </div>
       <div class="history-actions" aria-label="记录操作">
+        <div class="history-btn-row history-btn-row-single">
+          <button type="button" class="mini-ghost-btn" data-favorite-id="${entry.id}" aria-label="${favorite ? '取消收藏这条记录' : '收藏这条记录'}">${favorite ? '⭐️ 已收藏' : '☆ 收藏'}</button>
+        </div>
         <div class="history-btn-row history-btn-row-compact">
           <button type="button" class="mini-ghost-btn" data-edit-id="${entry.id}" aria-label="编辑这条记录">编辑</button>
-          <button type="button" class="mini-ghost-btn" data-favorite-id="${entry.id}" aria-label="${favorite ? '取消收藏这条记录' : '收藏这条记录'}">${favorite ? '⭐️ 已收藏' : '☆ 收藏'}</button>
           <button type="button" class="mini-danger-btn" data-delete-id="${entry.id}" aria-label="删除这条记录">删除</button>
         </div>
       </div>
