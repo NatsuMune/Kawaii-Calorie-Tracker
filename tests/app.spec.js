@@ -88,16 +88,15 @@ test('saving with an empty date uses today when you reopen the entry', async ({ 
   await expect(page.locator('#intakeLoggedAt')).toHaveValue(expectedDate);
 });
 
-test('duplicate entry creates another record and updates totals', async ({ page }) => {
+test('history cards no longer offer duplicate action', async ({ page }) => {
   await page.getByRole('button', { name: '记录' }).click();
   await page.locator('#intakeText').fill('奶茶');
   await page.locator('#intakeCalories').fill('300');
   await page.getByRole('button', { name: '保存记录' }).click();
 
-  await page.getByRole('button', { name: '再记一次这条记录' }).click();
-
-  await expect(page.locator('#todayTotal')).toHaveText('600');
-  await expect(page.locator('#entryCount')).toHaveText('2');
+  await expect(page.getByRole('button', { name: '再记一次这条记录' })).toHaveCount(0);
+  await expect(page.locator('#todayTotal')).toHaveText('300');
+  await expect(page.locator('#entryCount')).toHaveText('1');
 });
 
 test('backfilled entries keep history but do not affect today total', async ({ page }) => {
@@ -207,7 +206,8 @@ test('mobile history cards keep metadata and actions in a stable stacked layout'
   await expect(card.locator('.history-date')).toBeVisible();
   await expect(card.locator('.meal-badge')).toBeVisible();
   await expect(card.locator('.history-calories')).toBeVisible();
-  await expect(buttons).toHaveCount(4);
+  await expect(buttons).toHaveCount(3);
+  await expect(buttons.nth(1)).toHaveText('☆ 收藏');
 
   const cardBox = await card.boundingBox();
   const metaBox = await meta.boundingBox();
@@ -226,8 +226,9 @@ test('mobile history cards keep metadata and actions in a stable stacked layout'
   expect(actionsBox.y).toBeGreaterThan(metaBox.y + metaBox.height - 1);
   expect(firstButtonBox.x + firstButtonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
   expect(secondButtonBox.x + secondButtonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+  expect(thirdButtonBox.x + thirdButtonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
   expect(Math.abs(firstButtonBox.y - secondButtonBox.y)).toBeLessThan(2);
-  expect(thirdButtonBox.y).toBeGreaterThan(firstButtonBox.y + firstButtonBox.height - 1);
+  expect(Math.abs(secondButtonBox.y - thirdButtonBox.y)).toBeLessThan(2);
 });
 
 
@@ -247,6 +248,7 @@ test('favorite entry appears in favorite quick-add section and can be reused', a
   await page.getByRole('button', { name: '保存记录' }).click();
 
   await page.getByRole('button', { name: '收藏这条记录' }).click();
+  await expect(page.getByRole('button', { name: '取消收藏这条记录' })).toHaveText('⭐️ 已收藏');
   await page.locator('.nav-btn[data-target="log"]').click();
   await page.getByRole('button', { name: '展开' }).click();
 

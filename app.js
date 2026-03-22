@@ -428,7 +428,6 @@ function bindHistory() {
     if (target.dataset.editId) return startEditing(target.dataset.editId);
     if (target.dataset.deleteId) return deleteEntry(target.dataset.deleteId);
     if (target.dataset.favoriteId) return toggleFavoriteFromEntry(target.dataset.favoriteId);
-    if (target.dataset.duplicateId) return duplicateEntry(target.dataset.duplicateId);
   });
 }
 
@@ -497,27 +496,6 @@ function applyTemplate(template) {
   els.intakeText?.focus();
   toast(`已填入 ${template.text}`);
   pulse([8, 16, 8]);
-}
-
-function duplicateEntry(entryId) {
-  const entry = state.entries.find((item) => item.id === entryId);
-  if (!entry) {
-    toast('找不到这条记录');
-    return;
-  }
-
-  state.entries.unshift({
-    id: makeEntryId(),
-    text: entry.text,
-    calories: entry.calories,
-    mealType: entry.mealType,
-    date: localDateKey(),
-    createdAt: new Date().toISOString()
-  });
-  saveState();
-  renderAll();
-  toast(`已再记一次 ${entry.text} ♡`);
-  pulse([10, 14, 10]);
 }
 
 function startEditing(entryId) {
@@ -790,7 +768,9 @@ function renderHistory() {
     return;
   }
 
-  els.historyList.innerHTML = visible.map(entry => `
+  els.historyList.innerHTML = visible.map(entry => {
+    const favorite = isEntryFavorite(entry);
+    return `
     <article class="history-item">
       <div class="history-meta">
         <div class="history-meta-top">
@@ -803,15 +783,15 @@ function renderHistory() {
         </div>
       </div>
       <div class="history-actions" aria-label="记录操作">
-        <div class="history-btn-row">
+        <div class="history-btn-row history-btn-row-compact">
           <button type="button" class="mini-ghost-btn" data-edit-id="${entry.id}" aria-label="编辑这条记录">编辑</button>
-          <button type="button" class="mini-ghost-btn" data-duplicate-id="${entry.id}" aria-label="再记一次这条记录">再记一次</button>
-          <button type="button" class="mini-ghost-btn" data-favorite-id="${entry.id}" aria-label="${isEntryFavorite(entry) ? '取消收藏这条记录' : '收藏这条记录'}">${isEntryFavorite(entry) ? '已收藏' : '收藏'}</button>
+          <button type="button" class="mini-ghost-btn" data-favorite-id="${entry.id}" aria-label="${favorite ? '取消收藏这条记录' : '收藏这条记录'}">${favorite ? '⭐️ 已收藏' : '☆ 收藏'}</button>
           <button type="button" class="mini-danger-btn" data-delete-id="${entry.id}" aria-label="删除这条记录">删除</button>
         </div>
       </div>
     </article>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function renderSettings() {

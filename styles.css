@@ -766,14 +766,17 @@ h2 { font-size: 3.35rem; line-height: 1; }
   border-radius: 14px;
 }
 .history-btn-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, max-content));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: end;
   align-content: start;
 }
 .history-btn-row > button {
   min-height: 36px;
+}
+.history-btn-row-compact > button {
+  flex: 0 0 auto;
 }
 .mini-ghost-btn {
   padding: 8px 12px;
@@ -821,13 +824,13 @@ h2 { font-size: 3.35rem; line-height: 1; }
   }
 
   .history-btn-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: stretch;
     width: 100%;
   }
 
   .history-btn-row > button {
-    width: 100%;
+    flex: 1 1 calc((100% - 16px) / 3);
+    width: auto;
   }
 }
 
