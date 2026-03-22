@@ -998,7 +998,7 @@ function formatDateKey(dateKey) {
 }
 
 function formatEntryDate(entry) {
-  return formatDateKey(entry?.date || deriveEntryDate(entry || {}, entry?.createdAt));
+  return formatDateKey(entry?.date);
 }
 
 function exportBackup() {

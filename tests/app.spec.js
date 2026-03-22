@@ -372,6 +372,8 @@ test('legacy entries without explicit date get migrated from createdAt for filte
   await page.reload();
 
   await expect(page.locator('#historyList')).toContainText('旧记录');
+  await expect(page.locator('#historyList')).toContainText('3月20日');
+  await expect(page.locator('#historyList')).not.toContainText('17:15');
   await page.locator('#historyDateFilter').fill('2026-03-20');
   await expect(page.locator('#historyList')).toContainText('旧记录');
 
