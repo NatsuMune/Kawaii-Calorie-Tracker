@@ -472,3 +472,27 @@ test('switching pages never submits the intake form in the background', async ({
   await expect(page.locator('#entryCount')).toHaveText('0');
   await expect(page.locator('#todayTotal')).toHaveText('0');
 });
+
+test('head and manifest wire the right icon sizes for browser chrome and installed PWA', async ({ page }) => {
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', 'icons/calorie-tracker-s.png');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('sizes', '256x256');
+  await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute('href', 'icons/calorie-tracker-s.png');
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', 'icons/calorie-tracker-l.png');
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('sizes', '894x894');
+  await expect(page.locator('meta[name="msapplication-TileImage"]')).toHaveAttribute('content', 'icons/calorie-tracker-m.png');
+
+  const manifest = await page.evaluate(async () => {
+    const manifestHref = document.querySelector('link[rel="manifest"]')?.href;
+    const response = await fetch(manifestHref);
+    return response.json();
+  });
+
+  expect(manifest.icons).toEqual([
+    {
+      src: 'icons/calorie-tracker-l.png',
+      sizes: '894x894',
+      type: 'image/png',
+      purpose: 'any'
+    }
+  ]);
+});

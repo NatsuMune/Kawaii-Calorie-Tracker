@@ -8,10 +8,10 @@
   "theme_color": "#7edc9a",
   "icons": [
     {
-      "src": "icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "icons/calorie-tracker-l.png",
+      "sizes": "894x894",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v8';
+const CACHE_VERSION = 'v9';
 const APP_SHELL_CACHE = `kawaii-calorie-tracker-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `kawaii-calorie-tracker-runtime-${CACHE_VERSION}`;
 const APP_SHELL_ASSETS = [
@@ -7,7 +7,9 @@ const APP_SHELL_ASSETS = [
   './styles.css',
   './app.js',
   './manifest.webmanifest',
-  './icons/icon.svg',
+  './icons/calorie-tracker-s.png',
+  './icons/calorie-tracker-m.png',
+  './icons/calorie-tracker-l.png',
   './fonts/xingye-langman-yuzhou-wenrou.ttf',
   './fonts/zaozigongfangyuanqipaopao.otf'
 ];
