@@ -534,6 +534,27 @@ function bindAi() {
   els.aiEstimateBtn?.addEventListener('click', estimateCaloriesWithAi);
 }
 
+function parseAiJsonResponse(content) {
+  const raw = String(content || '').trim();
+  const candidates = [
+    raw,
+    raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/u, '').trim()
+  ];
+  const objectMatch = raw.match(/\{[\s\S]*\}/u);
+  if (objectMatch) candidates.push(objectMatch[0].trim());
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next normalization.
+    }
+  }
+
+  throw new SyntaxError('AI 返回的内容不是有效 JSON');
+}
+
 async function estimateCaloriesWithAi() {
   if (estimatingInFlight) return;
   const text = (els.aiEstimateText?.value || '').trim();
@@ -583,7 +604,7 @@ async function estimateCaloriesWithAi() {
     const content = Array.isArray(rawContent)
       ? rawContent.map((item) => item?.text || '').join('')
       : String(rawContent || '');
-    const parsed = JSON.parse(content);
+    const parsed = parseAiJsonResponse(content);
     if (els.intakeText) els.intakeText.value = String(parsed.foodName || text).trim();
     if (els.intakeCalories) els.intakeCalories.value = String(Math.max(0, Number(parsed.estimatedCalories) || 0));
     if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(parsed.mealType);

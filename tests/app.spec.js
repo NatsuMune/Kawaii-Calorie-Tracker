@@ -339,6 +339,42 @@ test('ai estimate uses OpenRouter as the only built-in browser-direct provider',
   await expect(page.locator('#aiEstimateResult')).toContainText('包含面条、牛肉与汤底');
 });
 
+test('ai estimate accepts markdown-fenced JSON from OpenRouter', async ({ page }) => {
+  await page.route('https://openrouter.ai/api/v1/chat/completions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: [
+                {
+                  type: 'text',
+                  text: '```json\n{\n  "foodName": "照烧鸡腿饭",\n  "estimatedCalories": 720,\n  "confidence": "high",\n  "reasoning": "按常见外卖份量估算",\n  "portionNote": "含米饭、鸡腿和酱汁",\n  "mealType": "dinner"\n}\n```'
+                }
+              ]
+            }
+          }
+        ]
+      })
+    });
+  });
+
+  await page.getByRole('button', { name: '设置' }).click();
+  await page.locator('#aiApiKeyInput').fill('browser-key');
+  await page.locator('#aiApiKeyInput').dispatchEvent('change');
+  await page.locator('.nav-btn[data-target="log"]').click();
+
+  await page.locator('#aiEstimateText').fill('一份照烧鸡腿饭');
+  await page.getByRole('button', { name: 'AI 估算并填入' }).click();
+
+  await expect(page.locator('#intakeText')).toHaveValue('照烧鸡腿饭');
+  await expect(page.locator('#intakeCalories')).toHaveValue('720');
+  await expect(page.locator('#intakeMealType')).toHaveValue('dinner');
+  await expect(page.locator('#aiEstimateResult')).toContainText('含米饭、鸡腿和酱汁');
+});
+
 test('ai settings stay in browser storage for OpenRouter', async ({ page }) => {
   await page.getByRole('button', { name: '设置' }).click();
   await expect(page.locator('.settings-fixed-provider')).toContainText('OpenRouter');
