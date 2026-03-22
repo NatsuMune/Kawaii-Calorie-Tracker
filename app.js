@@ -75,8 +75,6 @@ const els = {
   cancelEditBtn: document.getElementById('cancelEditBtn'),
   aiEstimateText: document.getElementById('aiEstimateText'),
   aiEstimateBtn: document.getElementById('aiEstimateBtn'),
-  aiEstimateStatus: document.getElementById('aiEstimateStatus'),
-  aiEstimateResult: document.getElementById('aiEstimateResult'),
   aiModelInput: document.getElementById('aiModelInput'),
   aiApiKeyInput: document.getElementById('aiApiKeyInput'),
   aiConfigSource: document.getElementById('aiConfigSource'),
