@@ -303,7 +303,7 @@ test('ai settings stay in browser storage for OpenRouter', async ({ page }) => {
   await expect(page.locator('.settings-fixed-provider')).toHaveText('OpenRouter');
 });
 
-test('editing shows date-only input and preserves the original timestamp when date stays the same', async ({ page }) => {
+test('editing shows date-only input and preserves the explicit saved date', async ({ page }) => {
   await page.addInitScript(() => {
     const seeded = {
       entries: [
@@ -330,6 +330,7 @@ test('editing shows date-only input and preserves the original timestamp when da
   await page.getByRole('button', { name: '更新记录' }).click();
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kawaii-calorie-tracker-v3')));
+  expect(stored.entries[0].date).toBe('2026-03-20');
   expect(stored.entries[0].createdAt).toBe('2026-03-20T17:15:00.000Z');
 });
 
@@ -346,11 +347,36 @@ test('saving with an empty date defaults to today locally', async ({ page }) => 
   await expect(page.locator('#historyList')).toContainText('没选日期的记录');
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kawaii-calorie-tracker-v3')));
-  const savedDate = await page.evaluate((iso) => {
-    const d = new Date(iso);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, stored.entries[0].createdAt);
-  expect(savedDate).toBe(localDate);
+  expect(stored.entries[0].date).toBe(localDate);
+});
+
+
+
+test('legacy entries without explicit date get migrated from createdAt for filtering and totals', async ({ page }) => {
+  await page.addInitScript(() => {
+    const seeded = {
+      entries: [
+        {
+          id: 'legacy-1',
+          text: '旧记录',
+          calories: 222,
+          mealType: 'snack',
+          createdAt: '2026-03-20T17:15:00.000Z'
+        }
+      ],
+      settings: { goal: 2000, favorites: [], ai: { provider: 'openrouter', model: 'openai/gpt-4o-mini', apiKey: '' } }
+    };
+    localStorage.setItem('kawaii-calorie-tracker-v3', JSON.stringify(seeded));
+    localStorage.setItem('kawaii-calorie-tracker-v2', JSON.stringify(seeded));
+  });
+  await page.reload();
+
+  await expect(page.locator('#historyList')).toContainText('旧记录');
+  await page.locator('#historyDateFilter').fill('2026-03-20');
+  await expect(page.locator('#historyList')).toContainText('旧记录');
+
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kawaii-calorie-tracker-v3')));
+  expect(stored.entries[0].date).toBe('2026-03-20');
 });
 
 test('switching pages never submits the intake form in the background', async ({ page }) => {

@@ -127,6 +127,11 @@ async function hydrateState() {
   const local = loadStateFromLocalStorage();
   if (local) {
     replaceState(local);
+    try {
+      saveStateToLocalStorage(local);
+    } catch (err) {
+      reportStorageIssue('本地存储读取不稳定，暂时改用备用存储。', err);
+    }
     void saveStateToIndexedDb(local);
     return;
   }
@@ -139,10 +144,7 @@ async function hydrateState() {
     } catch (err) {
       reportStorageIssue('本地存储读取不稳定，暂时改用备用存储。', err);
     }
-    return;
   }
-
-  replaceState(createDefaultState());
 }
 
 function loadStateFromLocalStorage() {
@@ -161,13 +163,7 @@ function sanitizeState(parsed) {
     entries: Array.isArray(parsed.entries)
       ? parsed.entries
           .filter((entry) => entry && typeof entry === 'object')
-          .map((entry) => ({
-            id: String(entry.id || makeEntryId()),
-            text: String(entry.text || '').trim().slice(0, 120),
-            calories: Math.max(0, Number(entry.calories) || 0),
-            mealType: sanitizeMealType(entry.mealType),
-            createdAt: normalizeIsoDate(entry.createdAt) || new Date().toISOString()
-          }))
+          .map((entry) => sanitizeEntry(entry))
           .filter((entry) => entry.text)
       : [],
     settings: {
@@ -176,6 +172,27 @@ function sanitizeState(parsed) {
       ai: sanitizeAiSettings(parsed.settings?.ai)
     }
   };
+}
+
+function sanitizeEntry(entry) {
+  const createdAt = normalizeIsoDate(entry.createdAt) || new Date().toISOString();
+  const date = deriveEntryDate(entry, createdAt);
+  return {
+    id: String(entry.id || makeEntryId()),
+    text: String(entry.text || '').trim().slice(0, 120),
+    calories: Math.max(0, Number(entry.calories) || 0),
+    mealType: sanitizeMealType(entry.mealType),
+    date,
+    createdAt
+  };
+}
+
+function deriveEntryDate(entry, fallbackCreatedAt) {
+  return normalizeDateInputValue(entry?.date)
+    || normalizeDateInputValue(entry?.loggedAt)
+    || dateKeyFromIso(entry?.createdAt)
+    || dateKeyFromIso(fallbackCreatedAt)
+    || localDateKey();
 }
 
 function replaceState(nextState) {
@@ -284,7 +301,7 @@ function bindForm() {
       const editingEntry = editingEntryId
         ? state.entries.find((item) => item.id === editingEntryId)
         : null;
-      const createdAt = resolveEntryTimestamp(els.intakeLoggedAt?.value, editingEntry?.createdAt);
+      const date = resolveEntryDate(els.intakeLoggedAt?.value, editingEntry?.date);
       if (!text || !Number.isFinite(calories) || calories < 0) {
         toast('请输入有效的食物名称和热量 ✨');
         return false;
@@ -300,7 +317,7 @@ function bindForm() {
         entry.text = text;
         entry.calories = calories;
         entry.mealType = mealType;
-        entry.createdAt = createdAt;
+        entry.date = date;
         saveState();
         renderAll();
         stopEditing();
@@ -315,7 +332,8 @@ function bindForm() {
         text,
         calories,
         mealType,
-        createdAt
+        date,
+        createdAt: new Date().toISOString()
       };
       state.entries.unshift(entry);
       saveState();
@@ -369,11 +387,11 @@ function bindSettings() {
     const ok = confirm('确定要清空这台设备上的全部热量记录吗？');
     if (!ok) return;
     state.entries = [];
+    state.settings = createDefaultState().settings;
+    stopEditing();
     saveState();
     renderAll();
-    stopEditing();
-    toast('数据已清空');
-    pulse([18]);
+    toast('已经清空啦');
   });
 }
 
@@ -408,66 +426,70 @@ function bindHistory() {
   });
 
   els.historyList?.addEventListener('click', (e) => {
-    const editBtn = e.target.closest('[data-edit-id]');
-    if (editBtn) {
-      startEditing(editBtn.dataset.editId);
-      return;
-    }
-
-    const duplicateBtn = e.target.closest('[data-duplicate-id]');
-    if (duplicateBtn) {
-      duplicateEntry(duplicateBtn.dataset.duplicateId);
-      return;
-    }
-
-    const favoriteBtn = e.target.closest('[data-favorite-id]');
-    if (favoriteBtn) {
-      toggleFavoriteFromEntry(favoriteBtn.dataset.favoriteId);
-      return;
-    }
-
-    const deleteBtn = e.target.closest('[data-delete-id]');
-    if (!deleteBtn) return;
-    const entry = state.entries.find((item) => item.id === deleteBtn.dataset.deleteId);
-    if (!entry) return;
-    const ok = confirm(`删除“${entry.text}”这条记录？`);
-    if (!ok) return;
-    state.entries = state.entries.filter((item) => item.id !== entry.id);
-    if (editingEntryId === entry.id) stopEditing();
-    saveState();
-    renderAll();
-    toast('已删除记录');
-    pulse([10]);
+    const target = e.target instanceof Element ? e.target.closest('button') : null;
+    if (!target) return;
+    if (target.dataset.editId) return startEditing(target.dataset.editId);
+    if (target.dataset.deleteId) return deleteEntry(target.dataset.deleteId);
+    if (target.dataset.favoriteId) return toggleFavoriteFromEntry(target.dataset.favoriteId);
+    if (target.dataset.duplicateId) return duplicateEntry(target.dataset.duplicateId);
   });
 }
 
 function bindQuickAdd() {
-  const handleClick = (button) => {
+  const triggerToggle = () => {
+    quickAddExpanded = !quickAddExpanded;
+    renderQuickAdd();
+  };
+
+  els.quickAddToggleBtn?.addEventListener('pointerup', () => {
+    quickAddLastPointerToggleAt = Date.now();
+    triggerToggle();
+  });
+
+  els.quickAddToggleBtn?.addEventListener('click', () => {
+    if (Date.now() - quickAddLastPointerToggleAt < 350) return;
+    triggerToggle();
+  });
+
+  const clickHandler = (event) => {
+    const button = event.target instanceof Element ? event.target.closest('.quick-add-btn') : null;
     if (!button) return;
-    const source = button.dataset.templateSource || 'default';
     const index = Number(button.dataset.templateIndex);
+    const source = button.dataset.templateSource;
     const templates = source === 'favorite' ? state.settings.favorites : QUICK_ADD_TEMPLATES;
     const template = templates[index];
     if (!template) return;
     applyTemplate(template);
   };
 
-  const toggleQuickAdd = () => {
-    quickAddExpanded = !quickAddExpanded;
-    renderQuickAdd();
-  };
+  els.quickAddList?.addEventListener('click', clickHandler);
+  els.favoriteQuickAddList?.addEventListener('click', clickHandler);
+}
 
-  els.quickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
-  els.favoriteQuickAddList?.addEventListener('click', (e) => handleClick(e.target.closest('[data-template-index]')));
-  els.quickAddToggleBtn?.addEventListener('pointerup', (e) => {
-    if (e.pointerType === 'mouse' || e.button !== 0) return;
-    e.preventDefault();
-    quickAddLastPointerToggleAt = Date.now();
-    toggleQuickAdd();
+function bindChartControls() {
+  els.chartRange7Btn?.addEventListener('click', () => {
+    chartRangeDays = 7;
+    renderChart();
   });
-  els.quickAddToggleBtn?.addEventListener('click', (e) => {
-    if (e.detail !== 0 && Date.now() - quickAddLastPointerToggleAt < 400) return;
-    toggleQuickAdd();
+  els.chartRange30Btn?.addEventListener('click', () => {
+    chartRangeDays = 30;
+    renderChart();
+  });
+}
+
+function bindPwa() {
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    els.installBtn?.classList.remove('hidden');
+  });
+
+  els.installBtn?.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    els.installBtn.classList.add('hidden');
   });
 }
 
@@ -492,6 +514,7 @@ function duplicateEntry(entryId) {
     text: entry.text,
     calories: entry.calories,
     mealType: entry.mealType,
+    date: localDateKey(),
     createdAt: new Date().toISOString()
   });
   saveState();
@@ -510,7 +533,7 @@ function startEditing(entryId) {
   if (els.intakeText) els.intakeText.value = entry.text;
   if (els.intakeCalories) els.intakeCalories.value = entry.calories;
   if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(entry.mealType);
-  if (els.intakeLoggedAt) els.intakeLoggedAt.value = toDateInputValue(entry.createdAt);
+  if (els.intakeLoggedAt) els.intakeLoggedAt.value = entry.date || '';
   renderEditorState();
   switchView('log');
   els.intakeText?.focus();
@@ -547,162 +570,152 @@ async function estimateCaloriesWithAi() {
   const aiSettings = getEffectiveAiSettings();
   if (!aiSettings.apiKey) {
     switchView('settings');
-    toast('先在设置里填入 API Key');
+    toast('先去设置里填 API Key 才能用 AI 估算');
     return;
   }
 
   estimatingInFlight = true;
   if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = true;
-  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `正在直接请求 ${getProviderLabel(aiSettings.provider)}…`;
+  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `OpenRouter · ${aiSettings.model} · 正在估算…`;
+  if (els.aiEstimateResult) els.aiEstimateResult.textContent = '正在请求 OpenRouter，稍等一下下 ✨';
 
   try {
-    const result = await callAiProvider({
-      provider: aiSettings.provider,
-      model: aiSettings.model,
-      apiKey: aiSettings.apiKey,
-      text
+    const prompt = [
+      '你是一个食物热量估算助手。',
+      '只返回 JSON，不要写解释。',
+      '字段：foodName(string), estimatedCalories(number), confidence(low|medium|high), reasoning(string), portionNote(string), mealType(breakfast|lunch|dinner|snack|other)。',
+      '如果描述中没有明确餐别，请合理猜测。',
+      `待估算内容：${text}`
+    ].join('\n');
+
+    const response = await fetch(PROVIDER_CONFIG.openrouter.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${aiSettings.apiKey}`,
+        'HTTP-Referer': window.location.origin,
+        'X-OpenRouter-Title': 'kawaii-calorie-tracker'
+      },
+      body: JSON.stringify({
+        model: aiSettings.model,
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+      })
     });
-    applyAiEstimate(result, aiSettings);
-  } catch (error) {
-    console.error(error);
-    const message = formatAiError(error, aiSettings.provider);
-    if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = message;
-    toast(message);
+
+    if (!response.ok) throw new Error(`AI 请求失败：${response.status}`);
+    const payload = await response.json();
+    const rawContent = payload?.choices?.[0]?.message?.content;
+    const content = Array.isArray(rawContent)
+      ? rawContent.map((item) => item?.text || '').join('')
+      : String(rawContent || '');
+    const parsed = JSON.parse(content);
+    if (els.intakeText) els.intakeText.value = String(parsed.foodName || text).trim();
+    if (els.intakeCalories) els.intakeCalories.value = String(Math.max(0, Number(parsed.estimatedCalories) || 0));
+    if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(parsed.mealType);
+    if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `OpenRouter · ${aiSettings.model}`;
+    if (els.aiEstimateResult) {
+      const confidenceLabel = parsed.confidence === 'high' ? '高' : parsed.confidence === 'low' ? '低' : '中';
+      els.aiEstimateResult.textContent = `${parsed.reasoning || '已完成估算'}｜份量：${parsed.portionNote || '未说明'}｜置信度：${confidenceLabel}`;
+    }
+    toast('AI 已帮你填好了 ✨');
+    pulse([8, 16, 8]);
+  } catch (err) {
+    console.error(err);
+    if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `OpenRouter · ${aiSettings.model} · 请求失败`;
+    if (els.aiEstimateResult) els.aiEstimateResult.textContent = 'AI 估算失败了，检查一下模型或 API Key 再试。';
+    toast('AI 估算失败');
   } finally {
     estimatingInFlight = false;
     if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = false;
   }
 }
 
-async function callAiProvider({ provider, model, apiKey, text }) {
-  const normalizedProvider = normalizeProvider(provider);
-  const endpoint = PROVIDER_CONFIG[normalizedProvider].endpoint;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: buildProviderHeaders(normalizedProvider, apiKey),
-    body: JSON.stringify(buildChatCompletionPayload({ model, text }))
-  });
-  const payload = await response.json().catch(() => ({}));
-  return normalizeProviderResponse(payload, response, normalizedProvider);
-}
-
-function buildProviderHeaders(provider, apiKey) {
-  const normalizedProvider = normalizeProvider(provider);
-  const cleanApiKey = sanitizeApiKey(apiKey);
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-
-  if (cleanApiKey) {
-    headers.Authorization = `Bearer ${cleanApiKey}`;
-  }
-
-  if (normalizedProvider === 'openrouter') {
-    headers['HTTP-Referer'] = window.location.origin;
-    headers['X-OpenRouter-Title'] = 'kawaii-calorie-tracker';
-  }
-
-  return headers;
-}
-
-function buildChatCompletionPayload({ model, text }) {
+function getEffectiveAiSettings() {
+  const ai = sanitizeAiSettings(state.settings.ai);
   return {
-    model: sanitizeModel(model) || getCurrentProviderInfo().defaultModel,
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: buildPrompt(text)
-          }
-        ]
-      }
-    ]
+    provider: 'openrouter',
+    model: sanitizeModel(ai.model) || PROVIDER_CONFIG.openrouter.defaultModel,
+    apiKey: sanitizeApiKey(ai.apiKey)
   };
 }
 
-function buildPrompt(text) {
-  return [
-    '你是一个食物热量估算助手。',
-    '只根据用户提供的文字描述做稳健估算，不要假装看到了图片。',
-    '只返回 JSON，对象字段固定为：foodName, estimatedCalories, confidence, reasoning, portionNote, mealType。',
-    'estimatedCalories 必须是整数。confidence 只能是 low、medium、high。mealType 只能是 breakfast、lunch、dinner、snack、other。',
-    `用户输入：${text}`
-  ].join('\n');
-}
-
-function normalizeProviderResponse(payload, response, provider) {
-  if (!response.ok) {
-    const message = payload?.error?.message || payload?.message || `请求 ${provider} 失败 (${response.status})`;
-    throw new Error(message);
-  }
-  const rawContent = payload?.choices?.[0]?.message?.content;
-  const text = Array.isArray(rawContent)
-    ? rawContent.map((item) => item?.text || item?.content || '').join('')
-    : String(rawContent || '').trim();
-  const parsed = JSON.parse(text);
+function sanitizeAiSettings(ai) {
   return {
-    foodName: String(parsed.foodName || '未命名食物').trim(),
-    estimatedCalories: Math.max(0, Math.round(Number(parsed.estimatedCalories) || 0)),
-    confidence: ['low', 'medium', 'high'].includes(parsed.confidence) ? parsed.confidence : 'medium',
-    reasoning: String(parsed.reasoning || '').trim(),
-    portionNote: String(parsed.portionNote || '').trim(),
-    mealType: sanitizeMealType(parsed.mealType),
-    provider
+    provider: 'openrouter',
+    model: sanitizeModel(ai?.model) || DEFAULT_AI_SETTINGS.model,
+    apiKey: sanitizeApiKey(ai?.apiKey)
   };
 }
 
-function formatAiError(error, provider) {
-  const message = String(error?.message || 'AI 估算失败');
-  if (/Failed to fetch|Load failed|NetworkError/i.test(message)) {
-    return `${getProviderLabel(provider)} 直连失败：可能是网络问题，或这个提供商当前不允许浏览器跨域请求（CORS）。`;
+function sanitizeModel(value) {
+  const model = String(value || '').trim();
+  return model.slice(0, 120);
+}
+
+function sanitizeApiKey(value) {
+  return String(value || '').trim().slice(0, 240);
+}
+
+function sanitizeFavorites(list) {
+  if (!Array.isArray(list)) return [];
+  const deduped = [];
+  const seen = new Set();
+  list.forEach((item) => {
+    const normalized = {
+      text: String(item?.text || '').trim().slice(0, 120),
+      calories: Math.max(0, Number(item?.calories) || 0),
+      mealType: sanitizeMealType(item?.mealType),
+      emoji: String(item?.emoji || '').trim().slice(0, 8)
+    };
+    if (!normalized.text) return;
+    const key = makeFavoriteKey(normalized);
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(normalized);
+  });
+  return deduped.slice(0, 24);
+}
+
+function deleteEntry(entryId) {
+  const entry = state.entries.find((item) => item.id === entryId);
+  if (!entry) {
+    toast('找不到这条记录');
+    return;
   }
-  return message;
+  const ok = confirm(`确定删除「${entry.text}」吗？`);
+  if (!ok) return;
+  state.entries = state.entries.filter((item) => item.id !== entryId);
+  if (editingEntryId === entryId) stopEditing();
+  saveState();
+  renderAll();
+  toast('已删除');
 }
 
-function applyAiEstimate(result, aiSettings = state.settings.ai) {
-  if (els.intakeText) els.intakeText.value = result.foodName || (els.aiEstimateText?.value || '').trim();
-  if (els.intakeCalories) els.intakeCalories.value = result.estimatedCalories || '';
-  if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(result.mealType);
-  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `已从 ${getProviderLabel(aiSettings.provider)} · ${aiSettings.model} 直接填入估算结果`;
-  if (els.aiEstimateResult) {
-    els.aiEstimateResult.innerHTML = `
-      <strong>${escapeHtml(result.foodName || '食物')}</strong>
-      <p>${escapeHtml(`${result.estimatedCalories} kcal · ${getMealTypeLabel(result.mealType)} · 置信度 ${getConfidenceLabel(result.confidence)}`)}</p>
-      <p class="subtle">${escapeHtml(result.portionNote || result.reasoning || '可继续手动微调后保存。')}</p>
-    `;
+function toggleFavoriteFromEntry(entryId) {
+  const entry = state.entries.find((item) => item.id === entryId);
+  if (!entry) {
+    toast('找不到这条记录');
+    return;
   }
-  toast('AI 估算已填入 ✨');
-}
-
-function bindChartControls() {
-  els.chartRange7Btn?.addEventListener('click', () => {
-    chartRangeDays = 7;
-    renderChart();
+  const key = makeFavoriteKey(entry);
+  const exists = state.settings.favorites.some((item) => makeFavoriteKey(item) === key);
+  if (exists) {
+    state.settings.favorites = state.settings.favorites.filter((item) => makeFavoriteKey(item) !== key);
+    saveState();
+    renderAll();
+    toast('已取消收藏');
+    return;
+  }
+  state.settings.favorites.unshift({
+    text: entry.text,
+    calories: entry.calories,
+    mealType: entry.mealType,
+    emoji: '⭐️'
   });
-  els.chartRange30Btn?.addEventListener('click', () => {
-    chartRangeDays = 30;
-    renderChart();
-  });
-}
-
-function bindPwa() {
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    els.installBtn?.classList.remove('hidden');
-  });
-  els.installBtn?.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    els.installBtn.classList.add('hidden');
-  });
+  state.settings.favorites = sanitizeFavorites(state.settings.favorites);
+  saveState();
+  renderAll();
+  toast('已加入收藏');
 }
 
 function renderAll() {
@@ -717,7 +730,7 @@ function renderAll() {
 function renderStats() {
   const today = localDateKey();
   const entries = sortedEntries();
-  const todayTotal = entries.filter(e => toLocalDateKey(e.createdAt) === today).reduce((sum, e) => sum + e.calories, 0);
+  const todayTotal = entries.filter(e => e.date === today).reduce((sum, e) => sum + e.calories, 0);
   const daily = getChartDailyTotals(entries, 7);
   const avg7 = daily.reduce((a, b) => a + b.total, 0) / 7;
   const configuredGoal = Math.max(0, Number(state.settings.goal) || 0);
@@ -781,7 +794,7 @@ function renderHistory() {
     <article class="history-item">
       <div class="history-meta">
         <strong>${highlightMatch(entry.text, historyQuery)}</strong>
-        <p class="subtle history-meta-line"><span class="meal-badge">${highlightMatch(getMealTypeLabel(entry.mealType), historyQuery)}</span><span>${formatDate(entry.createdAt)}</span></p>
+        <p class="subtle history-meta-line"><span class="meal-badge">${highlightMatch(getMealTypeLabel(entry.mealType), historyQuery)}</span><span>${formatEntryDate(entry)}</span></p>
       </div>
       <div class="history-actions">
         <div class="history-calories">${entry.calories} kcal</div>
@@ -797,7 +810,7 @@ function renderHistory() {
 }
 
 function renderSettings() {
-  const provider = normalizeProvider(state.settings.ai.provider);
+  const provider = 'openrouter';
   const info = PROVIDER_CONFIG[provider];
   if (els.goalInput) els.goalInput.value = state.settings.goal;
   if (els.aiModelInput) els.aiModelInput.value = state.settings.ai.model || '';
@@ -936,7 +949,7 @@ function getChartDailyTotals(entries, days) {
   const byDay = Object.create(null);
   const todayKey = localDateKey();
   entries.forEach(entry => {
-    const key = toLocalDateKey(entry.createdAt);
+    const key = entry.date;
     byDay[key] = (byDay[key] || 0) + Number(entry.calories || 0);
   });
   for (let i = days - 1; i >= 0; i--) {
@@ -955,7 +968,7 @@ function getChartDailyTotals(entries, days) {
 }
 
 function sortedEntries() {
-  return [...state.entries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return sortedEntriesFrom(state.entries);
 }
 
 function localDateKey() {
@@ -963,17 +976,29 @@ function localDateKey() {
 }
 
 function toLocalDateKey(value) {
-  const d = new Date(value);
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 
-function formatDate(iso) {
-  return new Date(iso).toLocaleString('zh-CN', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
+function dateKeyFromIso(value) {
+  const iso = normalizeIsoDate(value);
+  return iso ? toLocalDateKey(iso) : null;
+}
+
+function formatDateKey(dateKey) {
+  const clean = normalizeDateInputValue(dateKey);
+  if (!clean) return '';
+  const [year, month, day] = clean.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+}
+
+function formatEntryDate(entry) {
+  return formatDateKey(entry?.date || deriveEntryDate(entry || {}, entry?.createdAt));
 }
 
 function exportBackup() {
@@ -1040,7 +1065,7 @@ function matchesHistoryFilters(entry) {
     return entry.text.toLowerCase().includes(query) || getMealTypeLabel(entry.mealType).toLowerCase().includes(query);
   })();
 
-  const matchesDate = !historyDateFilter || toLocalDateKey(entry.createdAt) === historyDateFilter;
+  const matchesDate = !historyDateFilter || entry.date === historyDateFilter;
   const matchesMeal = !historyMealFilter || sanitizeMealType(entry.mealType) === historyMealFilter;
   return matchesQuery && matchesDate && matchesMeal;
 }
@@ -1060,13 +1085,17 @@ function buildImportSummary(incoming, fileName) {
   const first = entries[entries.length - 1];
   const last = entries[0];
   const range = entries.length
-    ? `${formatDate(first.createdAt)} ～ ${formatDate(last.createdAt)}`
+    ? `${formatEntryDate(first)} ～ ${formatEntryDate(last)}`
     : '无记录';
   return `准备导入备份：${fileName}\n记录数：${incoming.entries.length}\n每日目标：${incoming.settings.goal} kcal\n时间范围：${range}`;
 }
 
 function sortedEntriesFrom(entries) {
-  return [...entries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return [...entries].sort((a, b) => {
+    const byDate = String(b.date || '').localeCompare(String(a.date || ''));
+    if (byDate !== 0) return byDate;
+    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  });
 }
 
 function renderQuickAddButtons(templates, source) {
@@ -1079,102 +1108,6 @@ function renderQuickAddButtons(templates, source) {
       </span>
     </button>
   `).join('');
-}
-
-function sanitizeFavorites(favorites) {
-  return Array.isArray(favorites)
-    ? favorites
-        .filter((item) => item && typeof item === 'object')
-        .map((item) => ({
-          text: String(item.text || '').trim().slice(0, 120),
-          calories: Math.max(0, Number(item.calories) || 0),
-          mealType: sanitizeMealType(item.mealType),
-          emoji: String(item.emoji || '⭐️').trim().slice(0, 4) || '⭐️'
-        }))
-        .filter((item) => item.text)
-    : [];
-}
-
-function sanitizeAiSettings(ai) {
-  const provider = 'openrouter';
-  return {
-    provider,
-    model: sanitizeModel(ai?.model || PROVIDER_CONFIG[provider].defaultModel),
-    apiKey: sanitizeApiKey(ai?.apiKey || '')
-  };
-}
-
-function getEffectiveAiSettings() {
-  const provider = 'openrouter';
-  const model = sanitizeModel(els.aiModelInput?.value || state.settings.ai.model || PROVIDER_CONFIG[provider].defaultModel) || PROVIDER_CONFIG[provider].defaultModel;
-  const apiKey = sanitizeApiKey(els.aiApiKeyInput?.value || state.settings.ai.apiKey);
-  const nextSettings = { provider, model, apiKey };
-
-  if (
-    state.settings.ai.provider !== nextSettings.provider ||
-    state.settings.ai.model !== nextSettings.model ||
-    state.settings.ai.apiKey !== nextSettings.apiKey
-  ) {
-    state.settings.ai = nextSettings;
-    saveState();
-    renderSettings();
-  }
-
-  return nextSettings;
-}
-
-function normalizeProvider(value) {
-  return value === 'openrouter' ? 'openrouter' : 'openrouter';
-}
-
-function sanitizeModel(value) {
-  return String(value || '').trim().slice(0, 120);
-}
-
-function sanitizeApiKey(value) {
-  return String(value || '').trim().slice(0, 300);
-}
-
-function getCurrentProviderInfo() {
-  return PROVIDER_CONFIG[normalizeProvider(state.settings.ai.provider)];
-}
-
-function getProviderLabel(provider) {
-  return PROVIDER_CONFIG[normalizeProvider(provider)].label;
-}
-
-function getConfidenceLabel(confidence) {
-  return ({ low: '低', medium: '中', high: '高' })[confidence] || '中';
-}
-
-function toggleFavoriteFromEntry(entryId) {
-  const entry = state.entries.find((item) => item.id === entryId);
-  if (!entry) {
-    toast('找不到这条记录');
-    return;
-  }
-
-  const key = makeFavoriteKey(entry);
-  const existingIndex = state.settings.favorites.findIndex((item) => makeFavoriteKey(item) === key);
-
-  if (existingIndex >= 0) {
-    state.settings.favorites.splice(existingIndex, 1);
-    saveState();
-    renderAll();
-    toast(`已取消收藏 ${entry.text}`);
-    return;
-  }
-
-  state.settings.favorites.unshift({
-    text: entry.text,
-    calories: entry.calories,
-    mealType: entry.mealType,
-    emoji: '⭐️'
-  });
-  state.settings.favorites = state.settings.favorites.slice(0, 8);
-  saveState();
-  renderAll();
-  toast(`已收藏 ${entry.text}`);
 }
 
 function makeFavoriteKey(item) {
@@ -1200,16 +1133,10 @@ function makeEntryId() {
     : `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function resolveEntryTimestamp(value, fallbackTimestamp) {
-  const preservedTime = normalizeIsoDate(fallbackTimestamp);
-  const currentMoment = new Date();
-  const selectedDate = normalizeDateInputValue(value) || toDateInputValue(currentMoment);
-
-  if (!selectedDate) {
-    return preservedTime || currentMoment.toISOString();
-  }
-
-  return combineLocalDateWithTime(selectedDate, preservedTime || currentMoment);
+function resolveEntryDate(value, fallbackDate) {
+  return normalizeDateInputValue(value)
+    || normalizeDateInputValue(fallbackDate)
+    || localDateKey();
 }
 
 function normalizeIsoDate(value) {
@@ -1227,23 +1154,6 @@ function toDateInputValue(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return toLocalDateKey(date);
-}
-
-function combineLocalDateWithTime(dateKey, timeSource) {
-  const [year, month, day] = String(dateKey).split('-').map(Number);
-  if (!year || !month || !day) return normalizeIsoDate(timeSource) || new Date().toISOString();
-  const base = timeSource instanceof Date ? new Date(timeSource) : new Date(timeSource || Date.now());
-  if (Number.isNaN(base.getTime())) return new Date().toISOString();
-  const combined = new Date(
-    year,
-    month - 1,
-    day,
-    base.getHours(),
-    base.getMinutes(),
-    base.getSeconds(),
-    base.getMilliseconds()
-  );
-  return combined.toISOString();
 }
 
 function formatTimestampForFilename(value) {
