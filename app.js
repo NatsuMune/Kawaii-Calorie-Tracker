@@ -110,7 +110,7 @@ async function init() {
   await hydrateState();
   renderAll();
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').then(() => {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(() => {
       navigator.serviceWorker.getRegistration().then((reg) => reg?.update?.()).catch(() => {});
     }).catch(console.error);
   }

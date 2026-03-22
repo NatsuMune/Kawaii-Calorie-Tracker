@@ -1,4 +1,5 @@
 const { defineConfig, devices } = require('@playwright/test');
+const PORT = Number(process.env.PORT || 4174);
 
 module.exports = defineConfig({
   testDir: './tests',
@@ -9,13 +10,13 @@ module.exports = defineConfig({
       use: {
         ...devices['iPhone 13'],
         browserName: 'chromium',
-        baseURL: 'http://127.0.0.1:4174',
+        baseURL: `http://127.0.0.1:${PORT}`,
       },
     },
   ],
   webServer: {
-    command: 'node server.js',
-    port: 4174,
+    command: `PORT=${PORT} node server.js`,
+    port: PORT,
     reuseExistingServer: true,
   },
 });

@@ -582,6 +582,22 @@ test('topbar uses the banner image instead of the old text masthead', async ({ p
   expect(bannerBox.height).toBeLessThanOrEqual(topbarBox.height + 1);
 });
 
+test('app shell assets disable HTTP caching so installed PWA updates promptly', async ({ request }) => {
+  const paths = [
+    '/sw.js',
+    '/manifest.webmanifest',
+    '/app.js',
+    '/styles.css',
+    '/assets/banner.png'
+  ];
+
+  for (const assetPath of paths) {
+    const response = await request.get(assetPath);
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['cache-control']).toBe('no-cache, no-store, must-revalidate');
+  }
+});
+
 test('app uses system font stacks instead of bundled custom fonts', async ({ page }) => {
   const fontInfo = await page.evaluate(() => {
     const bodyFamily = getComputedStyle(document.body).fontFamily;

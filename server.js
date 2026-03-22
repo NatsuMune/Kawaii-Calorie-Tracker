@@ -6,6 +6,17 @@ const { URL } = require('url');
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT || 4174);
 const ROOT = __dirname;
+const NO_CACHE_PATHS = new Set([
+  '/index.html',
+  '/app.js',
+  '/styles.css',
+  '/sw.js',
+  '/manifest.webmanifest',
+  '/assets/banner.png',
+  '/icons/calorie-tracker-s.png',
+  '/icons/calorie-tracker-m.png',
+  '/icons/calorie-tracker-l.png'
+]);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -48,10 +59,17 @@ function serveStatic(requestPath, res) {
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
       'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=300'
+      'Cache-Control': getCacheControl(safePath, ext)
     });
     res.end(data);
   });
+}
+
+function getCacheControl(requestPath, ext) {
+  if (NO_CACHE_PATHS.has(requestPath) || ext === '.html') {
+    return 'no-cache, no-store, must-revalidate';
+  }
+  return 'public, max-age=300';
 }
 
 function sendJson(res, statusCode, payload) {
