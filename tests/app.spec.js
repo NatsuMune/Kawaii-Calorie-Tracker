@@ -12,20 +12,20 @@ test.beforeEach(async ({ page }) => {
 async function seedEntries(page) {
   const now = new Date();
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const fmt = (d, hh, mm) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${hh}:${mm}`;
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   await page.getByRole('button', { name: '记录' }).click();
   await page.locator('#intakeText').fill('今天的午餐');
   await page.locator('#intakeCalories').fill('450');
   await page.locator('#intakeMealType').selectOption('lunch');
-  await page.locator('#intakeLoggedAt').fill(fmt(now, '12', '00'));
+  await page.locator('#intakeLoggedAt').fill(fmt(now));
   await page.getByRole('button', { name: '保存记录' }).click();
 
   await page.locator('.nav-btn[data-target="log"]').click();
   await page.locator('#intakeText').fill('昨天的奶茶');
   await page.locator('#intakeCalories').fill('300');
   await page.locator('#intakeMealType').selectOption('snack');
-  await page.locator('#intakeLoggedAt').fill(fmt(yesterday, '15', '20'));
+  await page.locator('#intakeLoggedAt').fill(fmt(yesterday));
   await page.getByRole('button', { name: '保存记录' }).click();
 
   return { now, yesterday };
@@ -72,21 +72,20 @@ test('quick-add fills the form and saves an entry for today', async ({ page }) =
   await expect(page.locator('#historyList')).toContainText('拿铁');
 });
 
-test('saving with an empty log time uses the click-time minute instead of a prefetched value', async ({ page }) => {
+test('saving with an empty date uses today when you reopen the entry', async ({ page }) => {
   await page.getByRole('button', { name: '记录' }).click();
   await page.locator('#intakeText').fill('延迟保存测试');
   await page.locator('#intakeCalories').fill('123');
   await expect(page.locator('#intakeLoggedAt')).toHaveValue('');
 
-  const expectedMinute = await page.evaluate(() => {
+  const expectedDate = await page.evaluate(() => {
     const now = new Date();
-    const tzOffset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   await page.getByRole('button', { name: '保存记录' }).click();
 
   await page.getByRole('button', { name: '编辑这条记录' }).click();
-  await expect(page.locator('#intakeLoggedAt')).toHaveValue(expectedMinute);
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue(expectedDate);
 });
 
 test('duplicate entry creates another record and updates totals', async ({ page }) => {
@@ -106,9 +105,7 @@ test('backfilled entries keep history but do not affect today total', async ({ p
   const yyyy = yesterday.getFullYear();
   const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
   const dd = String(yesterday.getDate()).padStart(2, '0');
-  const hh = '08';
-  const min = '30';
-  const localValue = `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  const localValue = `${yyyy}-${mm}-${dd}`;
 
   await page.getByRole('button', { name: '记录' }).click();
   await page.locator('#intakeText').fill('昨晚宵夜');
@@ -301,23 +298,59 @@ test('ai settings stay in browser storage for OpenRouter', async ({ page }) => {
   await page.getByRole('button', { name: '设置' }).click();
 
   await expect(page.locator('#aiApiKeyInput')).toHaveValue('or-key-123');
-  await expect(page.locator('#aiProviderStatus')).toContainText('不会经过本地服务代理');
-  await expect(page.locator('#aiDirectHint')).toContainText('Authorization: Bearer');
-  await expect(page.locator('#aiConfigSource')).toContainText('OpenRouter');
+  await expect(page.locator('#aiProviderStatus')).toContainText('API Key 仅保存在当前浏览器');
+  await expect(page.locator('#aiProviderStatus')).toContainText('openai/gpt-4o-mini');
+  await expect(page.locator('.settings-fixed-provider')).toHaveText('OpenRouter');
 });
 
-test('editing preserves an existing logged time value', async ({ page }) => {
-  const now = new Date();
-  const localValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T09:15`;
-
-  await page.getByRole('button', { name: '记录' }).click();
-  await page.locator('#intakeText').fill('手动时间测试');
-  await page.locator('#intakeCalories').fill('250');
-  await page.locator('#intakeLoggedAt').fill(localValue);
-  await page.getByRole('button', { name: '保存记录' }).click();
+test('editing shows date-only input and preserves the original timestamp when date stays the same', async ({ page }) => {
+  await page.addInitScript(() => {
+    const seeded = {
+      entries: [
+        {
+          id: 'entry-1',
+          text: '手动时间测试',
+          calories: 250,
+          mealType: 'lunch',
+          createdAt: '2026-03-20T17:15:00.000Z'
+        }
+      ],
+      settings: { goal: 2000, favorites: [], ai: { provider: 'openrouter', model: 'openai/gpt-4o-mini', apiKey: '' } }
+    };
+    localStorage.setItem('kawaii-calorie-tracker-v3', JSON.stringify(seeded));
+    localStorage.setItem('kawaii-calorie-tracker-v2', JSON.stringify(seeded));
+  });
+  await page.reload();
 
   await page.getByRole('button', { name: '编辑这条记录' }).click();
-  await expect(page.locator('#intakeLoggedAt')).toHaveValue(localValue);
+  await expect(page.locator('#intakeLoggedAt')).toHaveAttribute('type', 'date');
+  await expect(page.locator('#intakeLoggedAt')).toHaveValue('2026-03-20');
+
+  await page.locator('#intakeCalories').fill('251');
+  await page.getByRole('button', { name: '更新记录' }).click();
+
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kawaii-calorie-tracker-v3')));
+  expect(stored.entries[0].createdAt).toBe('2026-03-20T17:15:00.000Z');
+});
+
+test('saving with an empty date defaults to today locally', async ({ page }) => {
+  await page.getByRole('button', { name: '记录' }).click();
+  await page.locator('#intakeText').fill('没选日期的记录');
+  await page.locator('#intakeCalories').fill('321');
+  await page.locator('#intakeLoggedAt').fill('2026-03-01');
+  await page.locator('#intakeLoggedAt').fill('');
+  await page.getByRole('button', { name: '保存记录' }).click();
+
+  const today = new Date();
+  const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  await expect(page.locator('#historyList')).toContainText('没选日期的记录');
+
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kawaii-calorie-tracker-v3')));
+  const savedDate = await page.evaluate((iso) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, stored.entries[0].createdAt);
+  expect(savedDate).toBe(localDate);
 });
 
 test('switching pages never submits the intake form in the background', async ({ page }) => {

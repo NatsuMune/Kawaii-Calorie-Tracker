@@ -153,7 +153,9 @@
                 <textarea id="aiEstimateText" rows="3" maxlength="300" placeholder="例如：一碗牛肉面，加半颗卤蛋和一杯无糖豆浆"></textarea>
               </label>
               <button id="aiEstimateBtn" type="button" class="primary-btn">AI 估算并填入</button>
-                                        </section>
+              <p id="aiEstimateStatus" class="subtle"></p>
+              <div id="aiEstimateResult" class="ai-estimate-result"></div>
+            </section>
 
             <form id="intakeForm" class="intake-form">
               <div id="editingBanner" class="editing-banner hidden">
@@ -182,8 +184,8 @@
                 </select>
               </label>
               <label>
-                <span>记录时间</span>
-                <input id="intakeLoggedAt" name="loggedAt" type="datetime-local" />
+                <span>记录日期</span>
+                <input id="intakeLoggedAt" name="loggedAt" type="date" />
               </label>
               <button id="submitEntryBtn" type="submit" class="primary-btn">保存记录</button>
             </form>
@@ -205,22 +207,19 @@
               <input id="goalInput" type="number" min="0" max="9999" inputmode="numeric" />
             </div>
             <div class="settings-stack ai-settings-stack">
-              <div class="settings-fixed-provider" aria-label="AI 提供商">
-                <span class="subtle">AI 提供商</span>
-                <strong>OpenRouter</strong>
+              <div class="settings-ai-head">
+                <strong>AI 估算</strong>
+                <p id="aiProviderStatus" class="subtle">正在读取本地设置…</p>
               </div>
+              <div class="settings-fixed-provider" aria-label="AI 提供商">OpenRouter</div>
               <label>
                 <span>模型</span>
                 <input id="aiModelInput" type="text" maxlength="120" placeholder="例如：openai/gpt-4o-mini" />
               </label>
               <label>
                 <span>API Key</span>
-                <input id="aiApiKeyInput" type="password" maxlength="300" autocomplete="off" placeholder="粘贴到当前浏览器本地保存" />
+                <input id="aiApiKeyInput" type="password" maxlength="300" autocomplete="off" placeholder="只保存在当前浏览器" />
               </label>
-              <div class="settings-note-card">
-                <p id="aiProviderStatus" class="subtle">正在读取本地设置…</p>
-                <p id="aiDirectHint" class="subtle">如果提供商拦截浏览器跨域请求（CORS），页面会直接提示失败；不会偷偷改走本地代理。</p>
-              </div>
             </div>
             <div class="backup-actions">
               <button id="exportDataBtn" type="button" class="ghost-btn">导出备份</button>

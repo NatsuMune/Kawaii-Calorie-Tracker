@@ -75,6 +75,8 @@ const els = {
   cancelEditBtn: document.getElementById('cancelEditBtn'),
   aiEstimateText: document.getElementById('aiEstimateText'),
   aiEstimateBtn: document.getElementById('aiEstimateBtn'),
+  aiEstimateStatus: document.getElementById('aiEstimateStatus'),
+  aiEstimateResult: document.getElementById('aiEstimateResult'),
   aiModelInput: document.getElementById('aiModelInput'),
   aiApiKeyInput: document.getElementById('aiApiKeyInput'),
   aiConfigSource: document.getElementById('aiConfigSource'),
@@ -279,14 +281,17 @@ function bindForm() {
       const text = (els.intakeText?.value || '').trim();
       const calories = Number(els.intakeCalories?.value);
       const mealType = sanitizeMealType(els.intakeMealType?.value);
-      const createdAt = resolveEntryTimestamp(els.intakeLoggedAt?.value);
+      const editingEntry = editingEntryId
+        ? state.entries.find((item) => item.id === editingEntryId)
+        : null;
+      const createdAt = resolveEntryTimestamp(els.intakeLoggedAt?.value, editingEntry?.createdAt);
       if (!text || !Number.isFinite(calories) || calories < 0) {
         toast('请输入有效的食物名称和热量 ✨');
         return false;
       }
 
       if (editingEntryId) {
-        const entry = state.entries.find((item) => item.id === editingEntryId);
+        const entry = editingEntry;
         if (!entry) {
           stopEditing();
           toast('这条记录已经不存在了');
@@ -505,7 +510,7 @@ function startEditing(entryId) {
   if (els.intakeText) els.intakeText.value = entry.text;
   if (els.intakeCalories) els.intakeCalories.value = entry.calories;
   if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(entry.mealType);
-  if (els.intakeLoggedAt) els.intakeLoggedAt.value = toDatetimeLocalValue(entry.createdAt);
+  if (els.intakeLoggedAt) els.intakeLoggedAt.value = toDateInputValue(entry.createdAt);
   renderEditorState();
   switchView('log');
   els.intakeText?.focus();
@@ -806,11 +811,8 @@ function renderSettings() {
   }
   if (els.aiProviderStatus) {
     els.aiProviderStatus.textContent = state.settings.ai.apiKey
-      ? `${info.label}：已在当前浏览器保存 API Key。请求会从这个页面直接发出，不会经过本地服务代理。`
-      : `${info.label}：还没填写 API Key，暂时不能估算。`;
-  }
-  if (els.aiDirectHint) {
-    els.aiDirectHint.textContent = `OpenRouter 会由浏览器直接请求，并按官方约定发送 ${info.authDocs}。远程访问页面时，API Key 仍只保存在当前浏览器，不会发回本机服务。`;
+      ? `OpenRouter · ${state.settings.ai.model || info.defaultModel} · API Key 仅保存在当前浏览器`
+      : `OpenRouter · ${state.settings.ai.model || info.defaultModel} · 填入 API Key 后即可使用`;
   }
 }
 
@@ -1198,8 +1200,16 @@ function makeEntryId() {
     : `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function resolveEntryTimestamp(value) {
-  return normalizeIsoDate(value) || new Date().toISOString();
+function resolveEntryTimestamp(value, fallbackTimestamp) {
+  const preservedTime = normalizeIsoDate(fallbackTimestamp);
+  const currentMoment = new Date();
+  const selectedDate = normalizeDateInputValue(value) || toDateInputValue(currentMoment);
+
+  if (!selectedDate) {
+    return preservedTime || currentMoment.toISOString();
+  }
+
+  return combineLocalDateWithTime(selectedDate, preservedTime || currentMoment);
 }
 
 function normalizeIsoDate(value) {
@@ -1208,11 +1218,32 @@ function normalizeIsoDate(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-function toDatetimeLocalValue(value) {
+function normalizeDateInputValue(value) {
+  const clean = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(clean) ? clean : null;
+}
+
+function toDateInputValue(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  const tzOffset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+  return toLocalDateKey(date);
+}
+
+function combineLocalDateWithTime(dateKey, timeSource) {
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  if (!year || !month || !day) return normalizeIsoDate(timeSource) || new Date().toISOString();
+  const base = timeSource instanceof Date ? new Date(timeSource) : new Date(timeSource || Date.now());
+  if (Number.isNaN(base.getTime())) return new Date().toISOString();
+  const combined = new Date(
+    year,
+    month - 1,
+    day,
+    base.getHours(),
+    base.getMinutes(),
+    base.getSeconds(),
+    base.getMilliseconds()
+  );
+  return combined.toISOString();
 }
 
 function formatTimestampForFilename(value) {

@@ -57,7 +57,6 @@ input, textarea, select {
   user-select: text;
 }
 input[type="date"],
-input[type="datetime-local"],
 input[type="number"],
 input[type="search"],
 select {
@@ -77,8 +76,7 @@ select {
   color: var(--text);
   transition: transform .15s ease, border-color .2s ease, box-shadow .2s ease;
 }
-input[type="date"],
-input[type="datetime-local"] {
+input[type="date"] {
   max-width: 100%;
   min-height: 58px;
   line-height: 1.2;
@@ -86,7 +84,6 @@ input[type="datetime-local"] {
   -webkit-appearance: none;
   appearance: none;
 }
-input[type="datetime-local"]::-webkit-date-and-time-value,
 input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
 }
@@ -494,12 +491,35 @@ h2 { font-size: 3.35rem; line-height: 1; }
   margin-bottom: 0;
 }
 .settings-fixed-provider {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(126,220,154,.22);
+  font-weight: 700;
+}
+.settings-ai-head {
   display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.7);
-  border: 1px dashed rgba(126,220,154,.35);
+  gap: 4px;
+}
+.settings-ai-head strong {
+  font-size: 1.02rem;
+}
+.settings-ai-head p {
+  margin: 0;
+}
+.ai-estimate-result {
+  display: none;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(126,220,154,.22);
+}
+.ai-estimate-result:not(:empty) {
+  display: grid;
+  gap: 4px;
+}
+.ai-estimate-result p {
+  margin: 0;
 }
 .quick-add-list {
   display: grid;
@@ -564,14 +584,9 @@ h2 { font-size: 3.35rem; line-height: 1; }
   transform: scale(.96);
 }
 .save-hint { margin-top: 14px; color: var(--muted); font-size: 1rem; }
-.settings-note-card {
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.7);
-  border: 1px dashed rgba(126,220,154,.35);
-}
 .ai-settings-stack {
   margin: 4px 0 14px;
+  gap: 12px;
 }
 .setting-row {
   grid-template-columns: minmax(0, 1fr) 108px;
