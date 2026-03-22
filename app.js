@@ -79,9 +79,6 @@ const els = {
   aiEstimateResult: document.getElementById('aiEstimateResult'),
   aiModelInput: document.getElementById('aiModelInput'),
   aiApiKeyInput: document.getElementById('aiApiKeyInput'),
-  aiConfigSource: document.getElementById('aiConfigSource'),
-  aiProviderStatus: document.getElementById('aiProviderStatus'),
-  aiDirectHint: document.getElementById('aiDirectHint'),
   goalInput: document.getElementById('goalInput'),
   clearDataBtn: document.getElementById('clearDataBtn'),
   exportDataBtn: document.getElementById('exportDataBtn'),
@@ -633,7 +630,6 @@ async function estimateCaloriesWithAi() {
 function getEffectiveAiSettings() {
   const ai = sanitizeAiSettings(state.settings.ai);
   return {
-    provider: 'openrouter',
     model: getEffectiveModel(ai.model),
     apiKey: sanitizeApiKey(ai.apiKey)
   };
@@ -814,8 +810,7 @@ function renderHistory() {
 }
 
 function renderSettings() {
-  const provider = 'openrouter';
-  const info = PROVIDER_CONFIG[provider];
+  const info = PROVIDER_CONFIG.openrouter;
   const aiSettings = getEffectiveAiSettings();
   if (els.goalInput) els.goalInput.value = state.settings.goal;
   if (els.aiModelInput) els.aiModelInput.value = aiSettings.model;
