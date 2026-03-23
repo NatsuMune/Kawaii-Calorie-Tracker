@@ -714,15 +714,19 @@ h2 { font-size: 3.35rem; line-height: 1; }
   transform: translate(-50%, -50%) translateY(-10px);
   background: rgba(55, 84, 69, .94);
   color: white;
-  padding: 24px 48px;
+  padding: 16px 28px;
   border-radius: 999px;
   opacity: 0;
   pointer-events: none;
   transition: .25s ease;
   z-index: 50;
-  font-size: 1.4rem;
-  font-weight: 700;
-  box-shadow: 0 12px 48px rgba(55, 84, 69, .5);
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 8px 32px rgba(55, 84, 69, .4);
+  white-space: nowrap;
+  max-width: 90vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .toast.show { opacity: 1; transform: translate(-50%, -50%) translateY(0); }
 @media (min-width: 430px) {
