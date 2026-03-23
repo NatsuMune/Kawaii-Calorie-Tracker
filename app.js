@@ -640,17 +640,10 @@ async function estimateCaloriesWithAi() {
     if (els.intakeText) els.intakeText.value = String(parsed.foodName || text).trim();
     if (els.intakeCalories) els.intakeCalories.value = String(Math.max(0, Number(parsed.estimatedCalories) || 0));
     if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(parsed.mealType);
-    if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `OpenRouter · ${aiSettings.model}`;
-    if (els.aiEstimateResult) {
-      const confidenceLabel = parsed.confidence === 'high' ? '高' : parsed.confidence === 'low' ? '低' : '中';
-      els.aiEstimateResult.textContent = `${parsed.reasoning || '已完成估算'}｜份量：${parsed.portionNote || '未说明'}｜置信度：${confidenceLabel}`;
-    }
     toast('AI 已帮你填好了 ✨');
     pulse([8, 16, 8]);
   } catch (err) {
     console.error(err);
-    if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `OpenRouter · ${aiSettings.model} · 请求失败`;
-    if (els.aiEstimateResult) els.aiEstimateResult.textContent = 'AI 估算失败了，检查一下模型或 API Key 再试。';
     toast('AI 估算失败');
   } finally {
     estimatingInFlight = false;
