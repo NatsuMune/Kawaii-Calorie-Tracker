@@ -640,6 +640,11 @@ async function estimateCaloriesWithAi() {
     if (els.intakeText) els.intakeText.value = String(parsed.foodName || text).trim();
     if (els.intakeCalories) els.intakeCalories.value = String(Math.max(0, Number(parsed.estimatedCalories) || 0));
     if (els.intakeMealType) els.intakeMealType.value = sanitizeMealType(parsed.mealType);
+    if (els.intakeLoggedAt) els.intakeLoggedAt.value = new Date().toISOString().slice(0, 10);
+    if (els.aiEstimateResult) {
+      const confidenceLabel = parsed.confidence === 'high' ? '高' : parsed.confidence === 'low' ? '低' : '中';
+      els.aiEstimateResult.textContent = `${parsed.reasoning || '已完成估算'}｜份量：${parsed.portionNote || '未说明'}｜置信度：${confidenceLabel}`;
+    }
     toast('AI 已帮你填好了 ✨');
     pulse([8, 16, 8]);
   } catch (err) {
@@ -1312,10 +1317,20 @@ function toast(message) {
     toastEl.className = 'toast';
     document.body.appendChild(toastEl);
   }
+  let backdropEl = document.querySelector('.toast-backdrop');
+  if (!backdropEl) {
+    backdropEl = document.createElement('div');
+    backdropEl.className = 'toast-backdrop';
+    document.body.appendChild(backdropEl);
+  }
   toastEl.textContent = message;
   toastEl.classList.add('show');
+  backdropEl.classList.add('show');
   clearTimeout(toastEl._timer);
-  toastEl._timer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+  toastEl._timer = setTimeout(() => {
+    toastEl.classList.remove('show');
+    backdropEl.classList.remove('show');
+  }, 1800);
 }
 
 function pulse() {}
