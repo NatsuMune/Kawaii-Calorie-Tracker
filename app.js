@@ -78,6 +78,7 @@ const els = {
   cancelEditBtn: document.getElementById('cancelEditBtn'),
   aiEstimateText: document.getElementById('aiEstimateText'),
   aiEstimateBtn: document.getElementById('aiEstimateBtn'),
+  aiEstimateLoading: document.getElementById('aiEstimateLoading'),
   aiEstimateStatus: document.getElementById('aiEstimateStatus'),
   aiEstimateResult: document.getElementById('aiEstimateResult'),
   aiModelInput: document.getElementById('aiModelInput'),
@@ -339,7 +340,7 @@ function bindForm() {
       saveState();
       renderAll();
       resetLogComposer();
-      toast('已保存 ♡');
+      toast('保存成功 ♡');
       pulse([12]);
       return false;
     } catch (err) {
@@ -532,13 +533,20 @@ function startEditing(entryId) {
   pulse([8, 16, 8]);
 }
 
-function resetLogComposer() {
+function setAiEstimateLoading(loading) {
+  if (!els.aiEstimateLoading) return;
+  els.aiEstimateLoading.classList.toggle('hidden', !loading);
+  els.aiEstimateLoading.setAttribute('aria-hidden', loading ? 'false' : 'true');
+}
+
+function resetLogComposer({ focusText = false } = {}) {
   stopEditing();
   if (els.aiEstimateText) els.aiEstimateText.value = '';
   if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = '';
   if (els.aiEstimateResult) els.aiEstimateResult.textContent = '';
+  setAiEstimateLoading(false);
   switchView('log');
-  els.intakeText?.focus();
+  if (focusText) els.intakeText?.focus();
 }
 
 function stopEditing(keepInputs = false) {
@@ -597,6 +605,7 @@ async function estimateCaloriesWithAi() {
 
   estimatingInFlight = true;
   if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = true;
+  setAiEstimateLoading(true);
   if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `OpenRouter · ${aiSettings.model} · 正在估算…`;
   if (els.aiEstimateResult) els.aiEstimateResult.textContent = '正在请求 OpenRouter，稍等一下下 ✨';
 
@@ -647,6 +656,7 @@ async function estimateCaloriesWithAi() {
     toast('AI 估算失败');
   } finally {
     estimatingInFlight = false;
+    setAiEstimateLoading(false);
     if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = false;
   }
 }

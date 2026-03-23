@@ -100,7 +100,8 @@ test('saving a new entry clears the log screen for the next intake', async ({ pa
   await expect(page.locator('#aiEstimateText')).toHaveValue('');
   await expect(page.locator('#aiEstimateStatus')).toHaveText('');
   await expect(page.locator('#aiEstimateResult')).toHaveText('');
-  await expect(page.locator('#intakeText')).toBeFocused();
+  await expect(page.locator('.toast')).toContainText('保存成功 ♡');
+  await expect(page.locator('#intakeText')).not.toBeFocused();
 });
 
 test('saving with an empty date uses today when you reopen the entry', async ({ page }) => {
@@ -350,6 +351,56 @@ test('chart bar palette changes based on relationship to the daily goal', async 
   expect(palettes.over.fillTop).toBe('#e66c7d');
   expect(palettes.low.labelText).not.toBe(palettes.near.labelText);
   expect(palettes.near.labelText).not.toBe(palettes.over.labelText);
+});
+
+test('ai estimate shows a waiting indicator while the request is in flight', async ({ page }) => {
+  let releaseResponse;
+  const responseGate = new Promise((resolve) => {
+    releaseResponse = resolve;
+  });
+
+  await page.route('https://openrouter.ai/api/v1/chat/completions', async (route) => {
+    await responseGate;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                foodName: '燕麦酸奶碗',
+                estimatedCalories: 320,
+                confidence: 'medium',
+                reasoning: '按一小碗酸奶燕麦水果组合估算',
+                portionNote: '一碗',
+                mealType: 'breakfast'
+              })
+            }
+          }
+        ]
+      })
+    });
+  });
+
+  await page.getByRole('button', { name: '设置' }).click();
+  await page.locator('#aiApiKeyInput').fill('browser-key');
+  await page.locator('#aiApiKeyInput').dispatchEvent('change');
+  await page.locator('.nav-btn[data-target="log"]').click();
+
+  await page.locator('#aiEstimateText').fill('燕麦酸奶水果碗');
+  await page.getByRole('button', { name: 'AI 估算并填入' }).click();
+
+  await expect(page.locator('#aiEstimateBtn')).toBeDisabled();
+  await expect(page.locator('#aiEstimateLoading')).toBeVisible();
+  await expect(page.locator('#aiEstimateLoading')).toContainText('AI 正在估算热量，请稍等');
+  await expect(page.locator('#aiEstimateStatus')).toContainText('正在估算');
+
+  releaseResponse();
+
+  await expect(page.locator('#aiEstimateLoading')).toBeHidden();
+  await expect(page.locator('#intakeText')).toHaveValue('燕麦酸奶碗');
+  await expect(page.locator('#intakeCalories')).toHaveValue('320');
 });
 
 test('ai estimate uses OpenRouter as the only built-in browser-direct provider', async ({ page }) => {
