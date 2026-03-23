@@ -606,8 +606,6 @@ async function estimateCaloriesWithAi() {
   estimatingInFlight = true;
   if (els.aiEstimateBtn) els.aiEstimateBtn.disabled = true;
   setAiEstimateLoading(true);
-  if (els.aiEstimateStatus) els.aiEstimateStatus.textContent = `OpenRouter · ${aiSettings.model} · 正在估算…`;
-  if (els.aiEstimateResult) els.aiEstimateResult.textContent = '正在请求 OpenRouter，稍等一下下 ✨';
 
   try {
     const prompt = [
