@@ -393,7 +393,7 @@ test('ai estimate shows a waiting indicator while the request is in flight', asy
 
   await expect(page.locator('#aiEstimateBtn')).toBeDisabled();
   await expect(page.locator('#aiEstimateLoading')).toBeVisible();
-  await expect(page.locator('#aiEstimateLoading')).toContainText('AI 正在估算热量，请稍等');
+  await expect(page.locator('#aiEstimateLoading')).toContainText('AI 估算中');
   await expect(page.locator('#aiEstimateStatus')).toContainText('正在估算');
 
   releaseResponse();
